@@ -92,7 +92,14 @@ function renderModeSwitch(activeMode) {
 function renderApiKeyPanel(ui) {
   const config = ui.apiConfig;
   const hasKey = Boolean(config?.hasApiKey);
-  const sourceText = config?.keySource === "runtime" ? "网页临时输入" : config?.keySource === "environment" ? "系统环境变量" : "未配置";
+  const sourceText =
+    config?.keySource === "runtime"
+      ? "网页临时输入"
+      : config?.keySource === "environment_pool"
+        ? `系统环境变量 Key 池（${config?.apiKeyCount || 0} 个）`
+        : config?.keySource === "environment"
+          ? "系统环境变量"
+          : "未配置";
   const runtimeKeyEnabled = config?.runtimeApiKeyEnabled !== false;
   const managedByServer = !runtimeKeyEnabled;
 
@@ -110,8 +117,8 @@ function renderApiKeyPanel(ui) {
         managedByServer
           ? `
             <p class="note-box">
-              线上部署已关闭网页临时密钥输入。请在 Render 的 Environment 中配置 OPENAI_API_KEY；
-              配好后这里会显示“系统环境变量”。
+              线上部署已关闭网页临时密钥输入。请在 Render 的 Environment 中配置 OPENAI_API_KEY 或 OPENAI_API_KEYS；
+              配好后这里会显示“系统环境变量”或“系统环境变量 Key 池”。
             </p>
           `
           : `

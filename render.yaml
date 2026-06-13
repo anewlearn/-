@@ -24,3 +24,5 @@ services:
         value: xhigh
       - key: OPENAI_API_KEY
         sync: false
+      - key: OPENAI_API_KEYS
+        sync: false

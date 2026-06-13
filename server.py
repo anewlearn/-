@@ -6,6 +6,7 @@ import mimetypes
 import os
 import re
 import sys
+import threading
 import urllib.error
 import urllib.request
 import uuid
@@ -22,6 +23,8 @@ DEFAULT_MODEL = "gpt-5.5"
 DEFAULT_IMAGE_MODEL = "gpt-image-2"
 DEFAULT_REASONING_EFFORT = "xhigh"
 RUNTIME_API_KEY = ""
+API_KEY_ROTATION_INDEX = 0
+API_KEY_ROTATION_LOCK = threading.Lock()
 SECRET_FIELD_NAMES = {
     "apikey",
     "api_key",
@@ -74,14 +77,55 @@ def provider_config() -> dict[str, str]:
     }
 
 
+def split_env_values(value: str) -> list[str]:
+    return [item.strip() for item in re.split(r"[\s,;]+", value or "") if item.strip()]
+
+
+def configured_api_keys() -> list[str]:
+    if RUNTIME_API_KEY:
+        return [RUNTIME_API_KEY]
+
+    keys: list[str] = []
+    for candidate in split_env_values(env("OPENAI_API_KEYS")):
+        if candidate not in keys:
+            keys.append(candidate)
+
+    single_key = env("OPENAI_API_KEY")
+    if single_key and single_key not in keys:
+        keys.append(single_key)
+
+    return keys
+
+
 def api_key() -> str:
-    return RUNTIME_API_KEY or env("OPENAI_API_KEY")
+    keys = configured_api_keys()
+    return keys[0] if keys else ""
+
+
+def next_api_key() -> str:
+    global API_KEY_ROTATION_INDEX
+    keys = configured_api_keys()
+    if not keys:
+        return ""
+    if len(keys) == 1:
+        return keys[0]
+
+    with API_KEY_ROTATION_LOCK:
+        key = keys[API_KEY_ROTATION_INDEX % len(keys)]
+        API_KEY_ROTATION_INDEX += 1
+    return key
+
+
+def api_key_count() -> int:
+    return len(configured_api_keys())
 
 
 def api_key_source() -> str:
     if RUNTIME_API_KEY:
         return "runtime"
-    if env("OPENAI_API_KEY"):
+    if api_key_count() > 1:
+        return "environment_pool"
+    if api_key_count() == 1:
         return "environment"
     return "none"
 
@@ -154,7 +198,7 @@ def delete_database_file() -> bool:
 
 
 def make_response_request(payload: dict[str, Any]) -> dict[str, Any]:
-    key = api_key()
+    key = next_api_key()
     if not key:
         raise RuntimeError("请先在“我的”页面输入 API Key。")
 
@@ -183,7 +227,7 @@ def make_response_request(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def make_json_post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
-    key = api_key()
+    key = next_api_key()
     if not key:
         raise RuntimeError("请先在“我的”页面输入 API Key。")
 
@@ -212,7 +256,7 @@ def make_json_post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def make_multipart_post(path: str, fields: dict[str, str], files: list[dict[str, Any]]) -> dict[str, Any]:
-    key = api_key()
+    key = next_api_key()
     if not key:
         raise RuntimeError("请先在“我的”页面输入 API Key。")
 
@@ -607,6 +651,7 @@ class StyleTapHandler(SimpleHTTPRequestHandler):
                     "reasoningEffort": config["reasoning_effort"],
                     "hasApiKey": bool(api_key()),
                     "keySource": api_key_source(),
+                    "apiKeyCount": api_key_count(),
                     "runtimeApiKeyEnabled": runtime_api_key_enabled(),
                     "serverDatabaseEnabled": server_database_enabled(),
                     "responseStorageDisabled": True,
@@ -635,6 +680,7 @@ class StyleTapHandler(SimpleHTTPRequestHandler):
                             "error": "线上部署不接受网页临时 API Key。请在服务器环境变量 OPENAI_API_KEY 中配置，或保持 AI 未连接状态。",
                             "hasApiKey": bool(api_key()),
                             "keySource": api_key_source(),
+                            "apiKeyCount": api_key_count(),
                         },
                     )
                     return
@@ -650,6 +696,7 @@ class StyleTapHandler(SimpleHTTPRequestHandler):
                         "ok": True,
                         "hasApiKey": True,
                         "keySource": "runtime",
+                        "apiKeyCount": api_key_count(),
                     },
                 )
                 return
@@ -762,6 +809,7 @@ class StyleTapHandler(SimpleHTTPRequestHandler):
                         "ok": True,
                         "hasApiKey": bool(api_key()),
                         "keySource": api_key_source(),
+                        "apiKeyCount": api_key_count(),
                         "runtimeApiKeyEnabled": False,
                     },
                 )
@@ -774,6 +822,7 @@ class StyleTapHandler(SimpleHTTPRequestHandler):
                     "ok": True,
                     "hasApiKey": bool(api_key()),
                     "keySource": api_key_source(),
+                    "apiKeyCount": api_key_count(),
                 },
             )
             return
@@ -795,7 +844,7 @@ def run() -> None:
     print(f"StyleTap server running at http://{host}:{port}")
     if host == "0.0.0.0":
         print(f"LAN access enabled. Other devices should use this computer's LAN IP, for example http://192.168.x.x:{port}")
-    print("OPENAI_API_KEY configured:", "yes" if api_key() else "no")
+    print("OpenAI API key count:", api_key_count())
     server.serve_forever()
 
 
