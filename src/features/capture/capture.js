@@ -83,6 +83,112 @@ function renderSkippedItems(items = []) {
   `;
 }
 
+function batchItemGarments(item) {
+  if (!item) return [];
+  return item.pendingGarment ? [item.pendingGarment] : item.pendingGarments || [];
+}
+
+function renderBatchQueue(capture) {
+  const items = capture.batchItems || [];
+  if (items.length <= 1) return "";
+  const doneCount = items.filter((item) => ["done", "done-with-warnings", "failed"].includes(item.status)).length;
+  const statusLabels = {
+    queued: "排队中",
+    processing: "处理中",
+    done: "已完成",
+    "done-with-warnings": "已完成",
+    failed: "处理失败",
+  };
+  return `
+    <div class="batch-queue">
+      <div class="batch-queue__header">
+        <strong>图片队列</strong>
+        <span>${doneCount}/${items.length} 已处理，最多 10 张</span>
+      </div>
+      <div class="batch-queue__list">
+        ${items
+          .map((item, index) => {
+            const garments = batchItemGarments(item);
+            const isActive = item.id === capture.activeBatchItemId;
+            const status = item.status || "queued";
+            return `
+              <button class="batch-item ${isActive ? "is-active" : ""} ${status === "failed" ? "is-error" : ""}" data-action="select-batch-item" data-id="${item.id}" type="button">
+                ${item.previewUrl ? `<img src="${item.previewUrl}" alt="${escapeHtml(item.fileName)} 预览" />` : ""}
+                <span>
+                  <strong>${index + 1}. ${escapeHtml(item.fileName)}</strong>
+                  <small>${garments.length ? `识别 ${garments.length} 件单品` : status === "processing" ? "正在识别和生图" : "等待处理"}</small>
+                </span>
+                <em>${statusLabels[status] || "排队中"}</em>
+              </button>
+            `;
+          })
+          .join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderBatchResults(capture) {
+  const items = capture.batchItems || [];
+  const selectedIds = new Set(capture.selectedPendingGarmentIds || []);
+  const resultItems = items.filter((item) => batchItemGarments(item).length || item.aiError || (item.skippedItems || []).length);
+  const garmentCount = resultItems.reduce((sum, item) => sum + batchItemGarments(item).length, 0);
+  if (!resultItems.length) return "";
+  return `
+    <div class="capture-result capture-result--stacked batch-results">
+      <div class="section-title">
+        <h2>批量识别结果 ${garmentCount ? `· ${garmentCount} 件单品` : ""}</h2>
+        <span>按照片分组，勾选后加入衣橱</span>
+      </div>
+      ${resultItems
+        .map((item, itemIndex) => {
+          const garments = batchItemGarments(item);
+          return `
+            <section class="batch-result-group">
+              <div class="batch-result-title">
+                <strong>${itemIndex + 1}. ${escapeHtml(item.fileName)}</strong>
+                <span>${garments.length ? `${garments.length} 件单品` : "暂无可入库单品"}</span>
+              </div>
+              ${item.aiError ? `<p class="error-box error-box--inline">${escapeHtml(item.aiError)}</p>` : ""}
+              ${garments
+                .map((garment) => {
+                  const isSelected = selectedIds.has(garment.id);
+                  return `
+                    <article class="result-card result-card--multi ${isSelected ? "is-selected" : ""}">
+                      <label class="pending-check">
+                        <input type="checkbox" data-pending-garment="${garment.id}" ${isSelected ? "checked" : ""} />
+                        <span>${isSelected ? "已选" : "未选"}</span>
+                      </label>
+                      ${renderGarmentArt(garment)}
+                      <div>
+                        <div class="tag-row">
+                          <span class="tag ai">AI 标签</span>
+                          <span class="tag">${escapeHtml(garment.category)}</span>
+                          ${renderImageStatus(garment)}
+                        </div>
+                        <h3>${escapeHtml(garment.name)}</h3>
+                        ${renderAiTags(garment)}
+                        ${garment.sourceRegion ? `<p class="result-meta">原图位置：${escapeHtml(garment.sourceRegion)}</p>` : ""}
+                        ${garment.imageError ? `<p class="error-box error-box--inline">单品图生成失败：${escapeHtml(garment.imageError)}</p>` : ""}
+                        <p>${escapeHtml(garment.notes || "已从批量照片中识别，可加入衣橱。")}</p>
+                      </div>
+                    </article>
+                  `;
+                })
+                .join("")}
+              ${renderSkippedItems(item.skippedItems)}
+            </section>
+          `;
+        })
+        .join("")}
+      <div class="button-row">
+        <button class="primary-button" data-action="confirm-capture" type="button">加入选中衣橱</button>
+        <button class="ghost-button" data-action="reset-capture" type="button">重新选择</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderOutfitResults(capture) {
   const garments = capture.pendingGarments || [];
   if (!garments.length) return "";
@@ -130,12 +236,18 @@ function renderOutfitResults(capture) {
 
 export function renderCapture(database, ui) {
   const capture = ui.capture;
-  const hasFile = Boolean(capture.fileName);
+  const batchItems = capture.batchItems || [];
+  const isBatch = batchItems.length > 1;
+  const activeBatchItem = batchItems.find((item) => item.id === capture.activeBatchItemId) || batchItems[0] || null;
+  const hasFile = Boolean(capture.fileName) || Boolean(activeBatchItem);
   const mockGarment = capture.pendingGarment;
   const apiConfig = ui.apiConfig;
   const aiMode = database.preference.aiMode || "fast";
   const mode = capture.mode || "single";
-  const hasOutfitResults = mode === "outfit" && (capture.pendingGarments || []).length > 0;
+  const hasOutfitResults = !isBatch && mode === "outfit" && (capture.pendingGarments || []).length > 0;
+  const hasBatchResults = isBatch && batchItems.some((item) => batchItemGarments(item).length || item.aiError);
+  const previewUrl = activeBatchItem?.previewUrl || capture.previewUrl;
+  const stepIndex = activeBatchItem?.stepIndex ?? capture.stepIndex;
 
   return `
     <section class="screen" data-page="capture">
@@ -158,11 +270,12 @@ export function renderCapture(database, ui) {
           hasFile
             ? `
               <div class="captured-preview">
-                ${capture.previewUrl ? `<img src="${capture.previewUrl}" alt="待识别照片预览" />` : ""}
+                ${previewUrl ? `<img src="${previewUrl}" alt="待识别照片预览" />` : ""}
                 ${renderDetectedBoxes(mode)}
               </div>
-              <div class="processing-list">${renderSteps(capture.stepIndex)}</div>
-              <p class="note-box">${capture.isProcessing ? (mode === "single" ? "正在调用 AI 把衣服整理出来……" : "正在识别整套单品、补标签并逐件生成单品图……") : "识别结果会先进入确认页，你可以保留、删除或重新生成。"}</p>
+              ${renderBatchQueue(capture)}
+              <div class="processing-list">${renderSteps(stepIndex)}</div>
+              <p class="note-box">${capture.isProcessing ? (isBatch ? "正在按队列逐张处理图片，当前图片完成后会自动进入下一张……" : mode === "single" ? "正在调用 AI 把衣服整理出来……" : "正在识别整套单品、补标签并逐件生成单品图……") : isBatch ? "已建立图片队列，点击开始后会按顺序逐张识别和生成单品图。" : "识别结果会先进入确认页，你可以保留、删除或重新生成。"}</p>
               ${capture.aiError ? `<p class="error-box">AI 调用失败：${escapeHtml(capture.aiError)}</p>` : ""}
             `
             : `
@@ -174,17 +287,19 @@ export function renderCapture(database, ui) {
                   <span>调用相机拍一张</span>
                 </label>
                 <label class="upload-choice">
-                  <input data-capture-file="album" type="file" accept="image/*" />
+                  <input data-capture-file="album" type="file" accept="image/*" multiple />
                   <span class="nav-icon">${icon("wardrobe", 32)}</span>
                   <strong>从相册选择</strong>
-                  <span>选择已有照片</span>
+                  <span>最多 10 张，按队列处理</span>
                 </label>
               </div>
             `
         }
 
         ${
-          hasOutfitResults
+          hasBatchResults
+            ? renderBatchResults(capture)
+            : hasOutfitResults
             ? renderOutfitResults(capture)
             : mockGarment
             ? `
@@ -209,7 +324,7 @@ export function renderCapture(database, ui) {
             `
             : hasFile
               ? `<div class="button-row" style="margin-top:16px">
-                  <button class="primary-button" data-action="finish-processing" type="button" ${capture.isProcessing ? "disabled" : ""}>${capture.isProcessing ? "AI 处理中" : mode === "single" ? "查看识别结果" : "识别并生成单品图"}</button>
+                  <button class="primary-button" data-action="finish-processing" type="button" ${capture.isProcessing ? "disabled" : ""}>${capture.isProcessing ? (isBatch ? "队列处理中" : "AI 处理中") : isBatch ? "开始队列处理" : mode === "single" ? "查看识别结果" : "识别并生成单品图"}</button>
                   <button class="ghost-button" data-action="reset-capture" type="button">取消</button>
                 </div>`
               : ""

@@ -30,6 +30,7 @@ import {
 } from "../services/ai-client.js";
 
 const root = document.querySelector("#app");
+const MAX_CAPTURE_BATCH_FILES = 10;
 let database = loadDatabase();
 let toastTimer = null;
 let quietServerPersistTimer = null;
@@ -61,6 +62,9 @@ const ui = {
     fileName: "",
     previewUrl: "",
     imageDataUrl: "",
+    batchItems: [],
+    activeBatchItemId: "",
+    isBatchProcessing: false,
     stepIndex: 0,
     pendingGarment: null,
     pendingGarments: [],
@@ -214,11 +218,19 @@ function resetCapture() {
   if (ui.capture.previewUrl) {
     URL.revokeObjectURL(ui.capture.previewUrl);
   }
+  for (const item of ui.capture.batchItems || []) {
+    if (item.previewUrl) {
+      URL.revokeObjectURL(item.previewUrl);
+    }
+  }
   ui.capture = {
     mode: ui.capture.mode || "single",
     fileName: "",
     previewUrl: "",
     imageDataUrl: "",
+    batchItems: [],
+    activeBatchItemId: "",
+    isBatchProcessing: false,
     stepIndex: 0,
     pendingGarment: null,
     pendingGarments: [],
@@ -244,6 +256,50 @@ function updatePendingGarment(id, patch) {
   );
 }
 
+function batchItemGarments(item) {
+  if (!item) return [];
+  return item.pendingGarment ? [item.pendingGarment] : item.pendingGarments || [];
+}
+
+function allBatchGarments() {
+  return (ui.capture.batchItems || []).flatMap(batchItemGarments);
+}
+
+function patchBatchItem(id, patch) {
+  ui.capture.batchItems = (ui.capture.batchItems || []).map((item) =>
+    item.id === id ? { ...item, ...patch } : item,
+  );
+}
+
+function patchBatchGarment(itemId, garmentId, patch) {
+  ui.capture.batchItems = (ui.capture.batchItems || []).map((item) => {
+    if (item.id !== itemId) return item;
+    const nextItem = { ...item };
+    if (nextItem.pendingGarment?.id === garmentId) {
+      nextItem.pendingGarment = { ...nextItem.pendingGarment, ...patch };
+    }
+    nextItem.pendingGarments = (nextItem.pendingGarments || []).map((garment) =>
+      garment.id === garmentId ? { ...garment, ...patch } : garment,
+    );
+    return nextItem;
+  });
+}
+
+function syncBatchResults() {
+  const garments = allBatchGarments();
+  const existingSelection = new Set(ui.capture.selectedPendingGarmentIds || []);
+  for (const garment of garments) {
+    if (!existingSelection.has(garment.id)) {
+      existingSelection.add(garment.id);
+    }
+  }
+  ui.capture.pendingGarments = garments;
+  ui.capture.pendingGarment = null;
+  ui.capture.selectedPendingGarmentIds = [...existingSelection].filter((id) =>
+    garments.some((garment) => garment.id === id),
+  );
+}
+
 async function runWithConcurrency(items, limit, worker) {
   const queue = [...items];
   const runners = Array.from({ length: Math.min(limit, queue.length) }, async () => {
@@ -255,26 +311,31 @@ async function runWithConcurrency(items, limit, worker) {
   await Promise.all(runners);
 }
 
-async function generateOutfitGarmentImages(garments, mode) {
+async function generateOutfitGarmentImages(
+  garments,
+  mode,
+  sourceImageDataUrl = ui.capture.imageDataUrl,
+  updateGarment = updatePendingGarment,
+) {
   const modeConfig = currentAiModeConfig();
   let successCount = 0;
   let failedCount = 0;
 
   await runWithConcurrency(garments, modeConfig.outfitImageConcurrency || 2, async (garment) => {
-    updatePendingGarment(garment.id, { imageStatus: "generating", imageError: "" });
+    updateGarment(garment.id, { imageStatus: "generating", imageError: "" });
     render();
     try {
-      const imagePath = await generateGarmentFlatImage(garment, ui.capture.imageDataUrl, {
+      const imagePath = await generateGarmentFlatImage(garment, sourceImageDataUrl, {
         aiMode: mode,
       });
-      updatePendingGarment(garment.id, {
+      updateGarment(garment.id, {
         imagePath,
         imageStatus: "done",
         imageError: "",
       });
       successCount += 1;
     } catch (error) {
-      updatePendingGarment(garment.id, {
+      updateGarment(garment.id, {
         imageStatus: "failed",
         imageError: error.message,
       });
@@ -284,6 +345,185 @@ async function generateOutfitGarmentImages(garments, mode) {
   });
 
   return { successCount, failedCount };
+}
+
+function createFallbackBatchGarment(item, captureMode) {
+  const garment = createGarmentFromCapture(item.fileName);
+  return {
+    ...garment,
+    notes:
+      captureMode === "outfit"
+        ? "未配置 API Key，已作为整套照片中的本地模拟单品加入确认队列。"
+        : "未配置 API Key，已作为本地模拟单品加入确认队列。",
+  };
+}
+
+async function processBatchItem(item, captureMode, aiMode) {
+  patchBatchItem(item.id, {
+    status: "processing",
+    stepIndex: 2,
+    aiError: "",
+    pendingGarment: null,
+    pendingGarments: [],
+    skippedItems: [],
+  });
+  render();
+
+  if (!hasApiKey()) {
+    const fallback = createFallbackBatchGarment(item, captureMode);
+    patchBatchItem(item.id, {
+      status: "done",
+      stepIndex: 4,
+      pendingGarment: captureMode === "single" ? fallback : null,
+      pendingGarments: captureMode === "outfit" ? [fallback] : [],
+      selectedPendingGarmentIds: [fallback.id],
+      aiError: "未配置 API Key，已使用本地模拟结果。",
+    });
+    syncBatchResults();
+    render();
+    return { ok: true, garmentCount: 1, imageFailures: 0, usedFallback: true };
+  }
+
+  if (captureMode === "outfit") {
+    const result = await recognizeOutfitItemsFromImage(item.imageDataUrl, item.fileName, {
+      aiMode,
+    });
+    const garments = result.items.map((metadata, index) =>
+      createGarmentFromCapture(`${item.fileName || "整套照片"}-${index + 1}`, {
+        ...metadata,
+        imageStatus: "queued",
+      }),
+    );
+    if (!garments.length) {
+      throw new Error("AI 没有识别出可入库单品，请换一张更清晰的全身照。");
+    }
+    patchBatchItem(item.id, {
+      pendingGarments: garments,
+      selectedPendingGarmentIds: garments.map((garment) => garment.id),
+      skippedItems: result.skipped,
+      stepIndex: 4,
+    });
+    syncBatchResults();
+    render();
+    const imageResult = await generateOutfitGarmentImages(
+      garments,
+      aiMode,
+      item.imageDataUrl,
+      (garmentId, patch) => patchBatchGarment(item.id, garmentId, patch),
+    );
+    patchBatchItem(item.id, {
+      status: imageResult.failedCount ? "done-with-warnings" : "done",
+      aiError: imageResult.failedCount
+        ? `${imageResult.failedCount} 件单品图生成失败，可先加入衣橱或稍后重试。`
+        : "",
+    });
+    syncBatchResults();
+    render();
+    return { ok: true, garmentCount: garments.length, imageFailures: imageResult.failedCount };
+  }
+
+  const metadata = await recognizeGarmentFromImage(item.imageDataUrl, item.fileName, {
+    aiMode,
+  });
+  const draftGarment = createGarmentFromCapture(item.fileName, metadata, "generated://captured-flat-lay");
+  patchBatchItem(item.id, {
+    pendingGarment: { ...draftGarment, imageStatus: "generating" },
+    selectedPendingGarmentIds: [draftGarment.id],
+    stepIndex: 4,
+  });
+  syncBatchResults();
+  render();
+
+  try {
+    const imagePath = await generateGarmentFlatImage(draftGarment, item.imageDataUrl, {
+      aiMode,
+    });
+    patchBatchItem(item.id, {
+      status: "done",
+      pendingGarment: { ...draftGarment, imagePath, imageStatus: "done", imageError: "" },
+      aiError: "",
+    });
+    syncBatchResults();
+    render();
+    return { ok: true, garmentCount: 1, imageFailures: 0 };
+  } catch (imageError) {
+    patchBatchItem(item.id, {
+      status: "done-with-warnings",
+      pendingGarment: {
+        ...draftGarment,
+        imageStatus: "failed",
+        imageError: imageError.message,
+      },
+      aiError: `单品图生成失败：${imageError.message}`,
+    });
+    syncBatchResults();
+    render();
+    return { ok: true, garmentCount: 1, imageFailures: 1 };
+  }
+}
+
+async function processCaptureBatch() {
+  const items = ui.capture.batchItems || [];
+  if (!items.length) return false;
+
+  const aiMode = currentAiMode();
+  const captureMode = ui.capture.mode || "single";
+  ui.capture.isProcessing = true;
+  ui.capture.isBatchProcessing = true;
+  ui.capture.aiError = "";
+  ui.capture.stepIndex = 2;
+
+  let successCount = 0;
+  let failedCount = 0;
+  let garmentCount = 0;
+  let imageFailureCount = 0;
+  let usedFallback = false;
+
+  for (const item of items) {
+    ui.capture.activeBatchItemId = item.id;
+    ui.capture.fileName = item.fileName;
+    ui.capture.previewUrl = item.previewUrl;
+    ui.capture.imageDataUrl = item.imageDataUrl;
+    render();
+    try {
+      const result = await processBatchItem(item, captureMode, aiMode);
+      successCount += 1;
+      garmentCount += result.garmentCount || 0;
+      imageFailureCount += result.imageFailures || 0;
+      usedFallback = usedFallback || Boolean(result.usedFallback);
+    } catch (error) {
+      failedCount += 1;
+      const fallback = createFallbackBatchGarment(item, captureMode);
+      patchBatchItem(item.id, {
+        status: "failed",
+        stepIndex: 4,
+        pendingGarment: captureMode === "single" ? fallback : null,
+        pendingGarments: captureMode === "outfit" ? [fallback] : [],
+        selectedPendingGarmentIds: [fallback.id],
+        aiError: error.message,
+      });
+      syncBatchResults();
+      render();
+    }
+  }
+
+  ui.capture.fileName = `${items.length} 张照片`;
+  ui.capture.isProcessing = false;
+  ui.capture.isBatchProcessing = false;
+  ui.capture.stepIndex = 4;
+  ui.capture.aiError = failedCount
+    ? `${failedCount} 张照片处理失败，已保留可确认的本地模拟结果。`
+    : imageFailureCount
+      ? `${imageFailureCount} 件单品图生成失败，可先加入衣橱或稍后重试。`
+      : "";
+  syncBatchResults();
+  showToast(
+    usedFallback
+      ? `已按队列生成 ${garmentCount} 件本地模拟单品`
+      : `队列处理完成：${successCount}/${items.length} 张，${garmentCount} 件单品`,
+  );
+  render();
+  return true;
 }
 
 async function fileToDataUrl(file, options = {}) {
@@ -487,6 +727,10 @@ async function handleAction(event) {
       break;
     }
     case "finish-processing": {
+      if ((ui.capture.batchItems || []).length > 1) {
+        await processCaptureBatch();
+        break;
+      }
       const mode = currentAiMode();
       if (!hasApiKey()) {
         ui.capture.stepIndex = 4;
@@ -570,7 +814,21 @@ async function handleAction(event) {
       break;
     }
     case "confirm-capture": {
-      if (ui.capture.mode === "outfit" && ui.capture.pendingGarments.length) {
+      if ((ui.capture.batchItems || []).length > 1) {
+        syncBatchResults();
+        const selected = new Set(ui.capture.selectedPendingGarmentIds);
+        const garments = allBatchGarments().filter((garment) => selected.has(garment.id));
+        if (!garments.length) {
+          showToast("请先勾选至少一件单品");
+          break;
+        }
+        database.garments.unshift(...garments);
+        persist();
+        resetCapture();
+        ui.tab = "wardrobe";
+        ui.category = "全部";
+        showToast(`已加入 ${garments.length} 件单品`);
+      } else if (ui.capture.mode === "outfit" && ui.capture.pendingGarments.length) {
         const selected = new Set(ui.capture.selectedPendingGarmentIds);
         const garments = ui.capture.pendingGarments.filter((garment) => selected.has(garment.id));
         if (!garments.length) {
@@ -597,7 +855,22 @@ async function handleAction(event) {
       resetCapture();
       render();
       break;
+    case "select-batch-item": {
+      const item = (ui.capture.batchItems || []).find((batchItem) => batchItem.id === id);
+      if (!item) break;
+      ui.capture.activeBatchItemId = item.id;
+      ui.capture.fileName = item.fileName;
+      ui.capture.previewUrl = item.previewUrl;
+      ui.capture.imageDataUrl = item.imageDataUrl;
+      ui.capture.stepIndex = item.stepIndex ?? ui.capture.stepIndex;
+      render();
+      break;
+    }
     case "set-capture-mode": {
+      if (ui.capture.isProcessing) {
+        showToast("处理中暂不能切换模式");
+        break;
+      }
       const nextMode = actionElement.dataset.mode === "outfit" ? "outfit" : "single";
       const hasCurrentFile = Boolean(ui.capture.fileName);
       ui.capture.mode = nextMode;
@@ -606,6 +879,16 @@ async function handleAction(event) {
       ui.capture.selectedPendingGarmentIds = [];
       ui.capture.skippedItems = [];
       ui.capture.aiError = "";
+      ui.capture.batchItems = (ui.capture.batchItems || []).map((item) => ({
+        ...item,
+        status: "queued",
+        stepIndex: 2,
+        pendingGarment: null,
+        pendingGarments: [],
+        selectedPendingGarmentIds: [],
+        skippedItems: [],
+        aiError: "",
+      }));
       ui.capture.stepIndex = hasCurrentFile ? 2 : 0;
       showToast(nextMode === "single" ? "已切换单品模式" : "已切换整套模式");
       render();
@@ -805,16 +1088,53 @@ async function handleChange(event) {
   const target = event.target;
 
   if (target.matches("[data-capture-file]")) {
-    const file = target.files?.[0];
-    if (!file) return;
+    const selectedFiles = [...(target.files || [])].filter((file) => file.type.startsWith("image/"));
+    if (!selectedFiles.length) return;
+    const files = selectedFiles.slice(0, MAX_CAPTURE_BATCH_FILES);
+    const clippedCount = Math.max(selectedFiles.length - files.length, 0);
     resetCapture();
-    ui.capture.fileName = file.name;
-    ui.capture.previewUrl = URL.createObjectURL(file);
-    ui.capture.imageDataUrl = await fileToDataUrl(file, {
-      maxEdge: currentAiModeConfig().captureMaxEdge,
-      quality: currentAiMode() === "fast" ? 0.84 : 0.9,
-    });
+    if (files.length === 1) {
+      const file = files[0];
+      ui.capture.fileName = file.name;
+      ui.capture.previewUrl = URL.createObjectURL(file);
+      ui.capture.imageDataUrl = await fileToDataUrl(file, {
+        maxEdge: currentAiModeConfig().captureMaxEdge,
+        quality: currentAiMode() === "fast" ? 0.84 : 0.9,
+      });
+    } else {
+      const batchItems = await Promise.all(
+        files.map(async (file, index) => {
+          const imageDataUrl = await fileToDataUrl(file, {
+            maxEdge: currentAiModeConfig().captureMaxEdge,
+            quality: currentAiMode() === "fast" ? 0.84 : 0.9,
+          });
+          return {
+            id: `capture-${crypto.randomUUID()}`,
+            index,
+            fileName: file.name,
+            previewUrl: URL.createObjectURL(file),
+            imageDataUrl,
+            status: "queued",
+            stepIndex: 2,
+            pendingGarment: null,
+            pendingGarments: [],
+            selectedPendingGarmentIds: [],
+            skippedItems: [],
+            aiError: "",
+          };
+        }),
+      );
+      ui.capture.batchItems = batchItems;
+      ui.capture.activeBatchItemId = batchItems[0]?.id || "";
+      ui.capture.fileName = `${batchItems.length} 张照片`;
+      ui.capture.previewUrl = batchItems[0]?.previewUrl || "";
+      ui.capture.imageDataUrl = batchItems[0]?.imageDataUrl || "";
+      if (clippedCount) {
+        showToast(`一次最多处理 ${MAX_CAPTURE_BATCH_FILES} 张，已忽略 ${clippedCount} 张`);
+      }
+    }
     ui.capture.stepIndex = 2;
+    target.value = "";
     render();
     return;
   }
