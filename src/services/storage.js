@@ -1,4 +1,8 @@
 export const STORAGE_KEY = "style-tap-web-mvp-v0.1";
+const IMAGE_DB_NAME = "style-tap-image-store";
+const IMAGE_DB_VERSION = 1;
+const IMAGE_STORE_NAME = "garment-images";
+const IMAGE_REFERENCE_PREFIX = "indexeddb://garment-images/";
 
 const now = new Date().toISOString();
 
@@ -309,6 +313,105 @@ function normalizedSeedDatabase() {
   return mergeDatabase(seedDatabase);
 }
 
+function isInlineImage(value) {
+  return value?.startsWith?.("data:image/");
+}
+
+function isIndexedImageReference(value) {
+  return value?.startsWith?.(IMAGE_REFERENCE_PREFIX);
+}
+
+function imageReferenceForGarment(garment) {
+  return `${IMAGE_REFERENCE_PREFIX}${garment.id}`;
+}
+
+function imageKeyFromReference(reference) {
+  return isIndexedImageReference(reference) ? reference.slice(IMAGE_REFERENCE_PREFIX.length) : "";
+}
+
+function openImageDatabase() {
+  if (!window.indexedDB) {
+    return Promise.reject(new Error("IndexedDB is not available."));
+  }
+
+  return new Promise((resolve, reject) => {
+    const request = window.indexedDB.open(IMAGE_DB_NAME, IMAGE_DB_VERSION);
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains(IMAGE_STORE_NAME)) {
+        database.createObjectStore(IMAGE_STORE_NAME, { keyPath: "id" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Failed to open image database."));
+  });
+}
+
+async function writeImageRecord(id, dataUrl) {
+  const database = await openImageDatabase();
+  await new Promise((resolve, reject) => {
+    const transaction = database.transaction(IMAGE_STORE_NAME, "readwrite");
+    const store = transaction.objectStore(IMAGE_STORE_NAME);
+    store.put({ id, dataUrl, updatedAt: new Date().toISOString() });
+    transaction.oncomplete = resolve;
+    transaction.onerror = () => reject(transaction.error || new Error("Failed to save image."));
+  });
+  database.close();
+}
+
+async function readImageRecord(id) {
+  const database = await openImageDatabase();
+  const record = await new Promise((resolve, reject) => {
+    const transaction = database.transaction(IMAGE_STORE_NAME, "readonly");
+    const store = transaction.objectStore(IMAGE_STORE_NAME);
+    const request = store.get(id);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error || new Error("Failed to load image."));
+  });
+  database.close();
+  return record?.dataUrl || "";
+}
+
+function compactDatabaseForStorage(database) {
+  return {
+    ...database,
+    garments: database.garments.map((garment) => ({
+      ...garment,
+      imagePath: isInlineImage(garment.imagePath) ? imageReferenceForGarment(garment) : garment.imagePath,
+    })),
+  };
+}
+
+function archiveInlineImages(database) {
+  const inlineGarments = database.garments.filter((garment) => isInlineImage(garment.imagePath));
+  if (!inlineGarments.length) return;
+
+  Promise.allSettled(inlineGarments.map((garment) => writeImageRecord(garment.id, garment.imagePath))).then((results) => {
+    const failed = results.filter((result) => result.status === "rejected");
+    if (failed.length) {
+      console.warn("Failed to save some garment images to IndexedDB", failed);
+    }
+  });
+}
+
+export async function hydrateStoredImages(database) {
+  const garments = database.garments.filter((garment) => isIndexedImageReference(garment.imagePath));
+  if (!garments.length) return false;
+
+  const results = await Promise.allSettled(
+    garments.map(async (garment) => {
+      const dataUrl = await readImageRecord(imageKeyFromReference(garment.imagePath));
+      if (dataUrl) {
+        garment.imagePath = dataUrl;
+        return true;
+      }
+      return false;
+    }),
+  );
+
+  return results.some((result) => result.status === "fulfilled" && result.value);
+}
+
 export function loadDatabase() {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -325,8 +428,10 @@ export function loadDatabase() {
 }
 
 export function saveDatabase(database) {
+  archiveInlineImages(database);
+  const compactDatabase = compactDatabaseForStorage(database);
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(compactDatabase));
   } catch (error) {
     console.warn("Failed to save local database", error);
   }
@@ -353,7 +458,7 @@ export async function saveDatabaseToServer(database) {
   const response = await fetch("/api/database", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ database }),
+    body: JSON.stringify({ database: compactDatabaseForStorage(database) }),
   });
   const payload = await response.json();
   if (!payload.ok) {
@@ -383,8 +488,10 @@ function approximateDataUrlBytes(value) {
 }
 
 export function getWardrobeStorageInfo(database, estimate = null) {
-  const raw = JSON.stringify(database);
+  const compactDatabase = compactDatabaseForStorage(database);
+  const raw = JSON.stringify(compactDatabase);
   const imageGarments = database.garments.filter((garment) => garment.imagePath?.startsWith("data:image/"));
+  const indexedImageGarments = compactDatabase.garments.filter((garment) => garment.imagePath?.startsWith(IMAGE_REFERENCE_PREFIX));
   const placeholderGarments = database.garments.filter((garment) => garment.imagePath?.startsWith("generated://"));
   const remoteGarments = database.garments.filter((garment) => garment.imagePath?.startsWith("http"));
   const inlineImageBytes = imageGarments.reduce((sum, garment) => sum + approximateDataUrlBytes(garment.imagePath), 0);
@@ -395,10 +502,11 @@ export function getWardrobeStorageInfo(database, estimate = null) {
 
   return {
     storageKey: STORAGE_KEY,
-    storageLocation: "browser localStorage + data/wardrobe.json",
+    storageLocation: "browser localStorage + IndexedDB + data/wardrobe.json",
     serverStorageLocation: "data/wardrobe.json",
     garmentCount: database.garments.length,
     inlineImageCount: imageGarments.length,
+    indexedImageCount: indexedImageGarments.length,
     placeholderImageCount: placeholderGarments.length,
     remoteImageCount: remoteGarments.length,
     localDatabaseBytes,

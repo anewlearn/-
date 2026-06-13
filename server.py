@@ -556,6 +556,14 @@ class StyleTapHandler(SimpleHTTPRequestHandler):
     def log_message(self, format: str, *args: Any) -> None:
         sys.stderr.write("%s - %s\n" % (self.address_string(), format % args))
 
+    def end_headers(self) -> None:
+        path = self.path.split("?", 1)[0]
+        if path in {"/", "/index.html", "/service-worker.js", "/manifest.webmanifest"}:
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
+        super().end_headers()
+
     def do_GET(self) -> None:
         if self.path == "/api/database":
             if not server_database_enabled():

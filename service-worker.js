@@ -1,4 +1,4 @@
-const CACHE_NAME = "styletap-ios-web-v1";
+const CACHE_NAME = "styletap-ios-web-v2";
 
 const STATIC_ASSETS = [
   "./",
@@ -49,7 +49,32 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  if (requestUrl.pathname.endsWith("/service-worker.js")) {
+    return;
+  }
+
   if (event.request.method !== "GET") {
+    return;
+  }
+
+  const shouldPreferNetwork =
+    event.request.mode === "navigate" ||
+    requestUrl.pathname === "/" ||
+    requestUrl.pathname.endsWith("/index.html") ||
+    requestUrl.pathname.endsWith(".js") ||
+    requestUrl.pathname.endsWith(".css") ||
+    requestUrl.pathname.endsWith(".webmanifest");
+
+  if (shouldPreferNetwork) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
     return;
   }
 

@@ -93,6 +93,8 @@ function renderApiKeyPanel(ui) {
   const config = ui.apiConfig;
   const hasKey = Boolean(config?.hasApiKey);
   const sourceText = config?.keySource === "runtime" ? "网页临时输入" : config?.keySource === "environment" ? "系统环境变量" : "未配置";
+  const runtimeKeyEnabled = config?.runtimeApiKeyEnabled !== false;
+  const managedByServer = !runtimeKeyEnabled;
 
   return `
     <section class="form-panel api-key-panel">
@@ -104,19 +106,30 @@ function renderApiKeyPanel(ui) {
         <strong>${hasKey ? "AI 已连接" : "AI 未配置密钥"}</strong>
         <span>${config?.model || "gpt-5.5"} / ${sourceText} / 不在页面或文件中明文保存</span>
       </div>
-      <label class="field-label" for="api-key-input">OpenAI API Key</label>
-      <input
-        id="api-key-input"
-        class="text-field"
-        type="password"
-        autocomplete="off"
-        spellcheck="false"
-        placeholder="输入后仅保存在本地服务器内存"
-      />
-      <div class="button-row">
-        <button class="primary-button" data-action="save-api-key" type="button">保存并连接</button>
-        <button class="ghost-button" data-action="clear-api-key" type="button">清除临时密钥</button>
-      </div>
+      ${
+        managedByServer
+          ? `
+            <p class="note-box">
+              线上部署已关闭网页临时密钥输入。请在 Render 的 Environment 中配置 OPENAI_API_KEY；
+              配好后这里会显示“系统环境变量”。
+            </p>
+          `
+          : `
+            <label class="field-label" for="api-key-input">OpenAI API Key</label>
+            <input
+              id="api-key-input"
+              class="text-field"
+              type="password"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="输入后仅保存在本地服务器内存"
+            />
+            <div class="button-row">
+              <button class="primary-button" data-action="save-api-key" type="button">保存并连接</button>
+              <button class="ghost-button" data-action="clear-api-key" type="button">清除临时密钥</button>
+            </div>
+          `
+      }
     </section>
   `;
 }
@@ -146,6 +159,8 @@ function renderAiModePanel(database) {
 
 function renderStoragePanel(database, ui) {
   const storage = ui.storageInfo;
+  const serverDatabaseEnabled = ui.apiConfig?.serverDatabaseEnabled !== false;
+  const aiImageCount = Math.max(storage?.inlineImageCount || 0, storage?.indexedImageCount || 0);
   const percent = storage?.browserQuotaBytes
     ? Math.min(100, Math.round(((storage.browserUsageBytes || 0) / storage.browserQuotaBytes) * 100))
     : 0;
@@ -156,18 +171,22 @@ function renderStoragePanel(database, ui) {
         <span>${storage?.hasEnoughSpace ? "空间充足" : "空间偏紧"}</span>
       </div>
       <div class="storage-note">
-        当前测试版衣服数据保存在本机浏览器的 localStorage，键名为 ${escapeHtml(storage?.storageKey || "style-tap-web-mvp-v0.1")}。
-        AI 单品图如果生成成功，会以 data URL 存在 Garment.imagePath；原始照片目前只保存文件名，不保存照片文件。
+        当前测试版衣服属性和标签保存在本机浏览器的 localStorage，键名为 ${escapeHtml(storage?.storageKey || "style-tap-web-mvp-v0.1")}。
+        AI 单品图会转存到浏览器 IndexedDB，避免大图撑爆 localStorage；原始照片目前只保存文件名，不保存照片文件。
       </div>
       <div class="storage-note">
-        已启用本机文件备份：${escapeHtml(storage?.serverStorageLocation || "data/wardrobe.json")}。再次打开程序时会优先恢复衣橱、穿搭、身体参数和偏好设置；API Key 不会写入这个文件。
+        ${
+          serverDatabaseEnabled
+            ? `已启用本机文件备份：${escapeHtml(storage?.serverStorageLocation || "data/wardrobe.json")}。再次打开程序时会优先恢复衣橱、穿搭、身体参数和偏好设置；API Key 不会写入这个文件。`
+            : "线上模式未启用服务器文件备份；每台设备会使用自己的浏览器存储，API Key 由 Render 环境变量管理。"
+        }
       </div>
       <div class="storage-meter" aria-label="浏览器存储使用量">
         <span style="width:${percent}%"></span>
       </div>
       <div class="info-grid">
         <div><strong>${storage?.garmentCount ?? database.garments.length}</strong><span>衣服记录</span></div>
-        <div><strong>${storage?.inlineImageCount ?? 0}</strong><span>本地 AI 图片</span></div>
+        <div><strong>${aiImageCount}</strong><span>AI 图片</span></div>
         <div><strong>${storage?.placeholderImageCount ?? 0}</strong><span>占位模型图</span></div>
         <div><strong>${formatBytes(storage?.localDatabaseBytes)}</strong><span>衣橱数据大小</span></div>
         <div><strong>${formatBytes(storage?.browserUsageBytes)}</strong><span>浏览器已用</span></div>

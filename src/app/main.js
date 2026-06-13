@@ -4,6 +4,7 @@ import {
   createGarmentFromCapture,
   clearServerDatabase,
   getWardrobeStorageInfo,
+  hydrateStoredImages,
   loadDatabase,
   loadDatabaseFromServer,
   resetDatabase,
@@ -103,6 +104,7 @@ async function hydrateDatabaseFromServer() {
   const serverDatabase = await loadDatabaseFromServer();
   if (serverDatabase) {
     database = serverDatabase;
+    await hydrateStoredImages(database);
     saveDatabase(database);
     ui.outfitSelections = defaultOutfitSelections();
     ui.detailId = null;
@@ -115,6 +117,14 @@ async function hydrateDatabaseFromServer() {
   saveDatabaseToServer(database).catch((error) => {
     console.warn("Failed to create initial server wardrobe database", error);
   });
+}
+
+async function hydrateLocalImages() {
+  const changed = await hydrateStoredImages(database);
+  if (!changed) return;
+  ui.outfitSelections = defaultOutfitSelections();
+  await refreshStorageInfo();
+  render();
 }
 
 async function refreshApiConfig() {
@@ -688,6 +698,10 @@ async function handleAction(event) {
       showToast("身体档案已清空");
       break;
     case "save-api-key": {
+      if (ui.apiConfig?.runtimeApiKeyEnabled === false) {
+        showToast("线上密钥由 Render 环境变量管理");
+        break;
+      }
       const input = root.querySelector("#api-key-input");
       const apiKey = input?.value.trim() || "";
       if (!apiKey) {
@@ -705,6 +719,10 @@ async function handleAction(event) {
       break;
     }
     case "clear-api-key":
+      if (ui.apiConfig?.runtimeApiKeyEnabled === false) {
+        showToast("线上环境变量密钥不能在网页清除");
+        break;
+      }
       try {
         await clearRuntimeApiKey();
         await refreshApiConfig();
@@ -845,4 +863,5 @@ refreshApiConfig();
 refreshStorageInfo();
 
 render();
+hydrateLocalImages();
 hydrateDatabaseFromServer();
