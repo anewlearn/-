@@ -103,17 +103,19 @@ def api_key() -> str:
 
 
 def next_api_key() -> str:
+    candidates = api_key_candidates()
+    return candidates[0] if candidates else ""
+
+
+def api_key_candidates() -> list[str]:
     global API_KEY_ROTATION_INDEX
     keys = configured_api_keys()
-    if not keys:
-        return ""
-    if len(keys) == 1:
-        return keys[0]
-
+    if len(keys) <= 1:
+        return keys
     with API_KEY_ROTATION_LOCK:
-        key = keys[API_KEY_ROTATION_INDEX % len(keys)]
+        start = API_KEY_ROTATION_INDEX % len(keys)
         API_KEY_ROTATION_INDEX += 1
-    return key
+    return keys[start:] + keys[:start]
 
 
 def api_key_count() -> int:
@@ -128,6 +130,56 @@ def api_key_source() -> str:
     if api_key_count() == 1:
         return "environment"
     return "none"
+
+
+def retryable_provider_error(error: ProviderError) -> bool:
+    if error.status is None:
+        return True
+    return error.status in {408, 409, 425, 429, 500, 502, 503, 504}
+
+
+def request_with_key_failover(
+    request_factory: Any,
+    timeout: int,
+    missing_key_message: str = "请先在“我的”页面输入 API Key。",
+) -> dict[str, Any]:
+    candidates = api_key_candidates()
+    if not candidates:
+        raise RuntimeError(missing_key_message)
+
+    attempts: list[dict[str, Any]] = []
+    last_error: ProviderError | None = None
+    for index, key in enumerate(candidates):
+        try:
+            request = request_factory(key)
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            details = error.read().decode("utf-8", errors="replace")
+            provider_error = ProviderError(error.code, provider_error_message(error.code, details), details)
+        except urllib.error.URLError as error:
+            provider_error = ProviderError(None, f"无法连接 AI 服务：{error.reason}")
+
+        last_error = provider_error
+        attempts.append(
+            {
+                "keyIndex": index + 1,
+                "status": provider_error.status,
+                "message": str(provider_error),
+            }
+        )
+        if index < len(candidates) - 1 and retryable_provider_error(provider_error):
+            continue
+        break
+
+    if last_error is None:
+        raise RuntimeError(missing_key_message)
+
+    if len(attempts) > 1:
+        failover_details = json.dumps({"failoverAttempts": attempts}, ensure_ascii=False)
+        details = f"{last_error.details}\n{failover_details}" if last_error.details else failover_details
+        raise ProviderError(last_error.status, str(last_error), details) from last_error
+    raise last_error
 
 
 def json_response(handler: SimpleHTTPRequestHandler, status: int, payload: dict[str, Any]) -> None:
@@ -198,68 +250,46 @@ def delete_database_file() -> bool:
 
 
 def make_response_request(payload: dict[str, Any]) -> dict[str, Any]:
-    key = next_api_key()
-    if not key:
-        raise RuntimeError("请先在“我的”页面输入 API Key。")
-
     config = provider_config()
     url = f"{config['base_url']}/responses"
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    request = urllib.request.Request(
-        url,
-        data=data,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-    )
 
-    try:
-        with urllib.request.urlopen(request, timeout=120) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        details = error.read().decode("utf-8", errors="replace")
-        raise ProviderError(error.code, provider_error_message(error.code, details), details) from error
-    except urllib.error.URLError as error:
-        raise ProviderError(None, f"无法连接 AI 服务：{error.reason}") from error
+    def factory(key: str) -> urllib.request.Request:
+        return urllib.request.Request(
+            url,
+            data=data,
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+        )
+
+    return request_with_key_failover(factory, timeout=120)
 
 
 def make_json_post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
-    key = next_api_key()
-    if not key:
-        raise RuntimeError("请先在“我的”页面输入 API Key。")
-
     config = provider_config()
     url = f"{config['base_url']}{path}"
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    request = urllib.request.Request(
-        url,
-        data=data,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-    )
 
-    try:
-        with urllib.request.urlopen(request, timeout=120) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        details = error.read().decode("utf-8", errors="replace")
-        raise ProviderError(error.code, provider_error_message(error.code, details), details) from error
-    except urllib.error.URLError as error:
-        raise ProviderError(None, f"无法连接 AI 服务：{error.reason}") from error
+    def factory(key: str) -> urllib.request.Request:
+        return urllib.request.Request(
+            url,
+            data=data,
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+        )
+
+    return request_with_key_failover(factory, timeout=120)
 
 
 def make_multipart_post(path: str, fields: dict[str, str], files: list[dict[str, Any]]) -> dict[str, Any]:
-    key = next_api_key()
-    if not key:
-        raise RuntimeError("请先在“我的”页面输入 API Key。")
-
     boundary = f"----StyleTapBoundary{uuid.uuid4().hex}"
     chunks: list[bytes] = []
     for name, value in fields.items():
@@ -285,25 +315,20 @@ def make_multipart_post(path: str, fields: dict[str, str], files: list[dict[str,
 
     config = provider_config()
     url = f"{config['base_url']}{path}"
-    request = urllib.request.Request(
-        url,
-        data=data,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": f"multipart/form-data; boundary={boundary}",
-            "Accept": "application/json",
-        },
-    )
 
-    try:
-        with urllib.request.urlopen(request, timeout=180) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        details = error.read().decode("utf-8", errors="replace")
-        raise ProviderError(error.code, provider_error_message(error.code, details), details) from error
-    except urllib.error.URLError as error:
-        raise ProviderError(None, f"无法连接 AI 服务：{error.reason}") from error
+    def factory(key: str) -> urllib.request.Request:
+        return urllib.request.Request(
+            url,
+            data=data,
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+                "Accept": "application/json",
+            },
+        )
+
+    return request_with_key_failover(factory, timeout=180)
 
 
 def provider_error_message(status: int, details: str) -> str:

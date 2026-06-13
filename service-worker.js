@@ -1,4 +1,4 @@
-const CACHE_NAME = "styletap-ios-web-v2";
+const CACHE_NAME = "styletap-ios-web-v3";
 
 const STATIC_ASSETS = [
   "./",

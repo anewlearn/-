@@ -15,6 +15,134 @@ async function requestJson(path, payload = null) {
   return data;
 }
 
+const IMAGE_REQUEST_CACHE_DB = "style-tap-ai-image-request-cache";
+const IMAGE_REQUEST_CACHE_VERSION = 1;
+const IMAGE_REQUEST_CACHE_STORE = "image-results";
+const IMAGE_REQUEST_CACHE_PREFIX = "ai-image-request:";
+const pendingImageRequests = new Map();
+
+function simpleHash(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+async function digestString(value) {
+  if (globalThis.crypto?.subtle && globalThis.TextEncoder) {
+    const bytes = new TextEncoder().encode(value);
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+    return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+  return simpleHash(value);
+}
+
+function imageRequestCacheAvailable() {
+  return typeof window !== "undefined" && Boolean(window.indexedDB);
+}
+
+function openImageRequestCache() {
+  if (!imageRequestCacheAvailable()) {
+    return Promise.reject(new Error("IndexedDB is not available."));
+  }
+
+  return new Promise((resolve, reject) => {
+    const request = window.indexedDB.open(IMAGE_REQUEST_CACHE_DB, IMAGE_REQUEST_CACHE_VERSION);
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains(IMAGE_REQUEST_CACHE_STORE)) {
+        database.createObjectStore(IMAGE_REQUEST_CACHE_STORE, { keyPath: "key" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Failed to open image request cache."));
+  });
+}
+
+async function readImageRequestCache(key) {
+  const database = await openImageRequestCache();
+  const record = await new Promise((resolve, reject) => {
+    const transaction = database.transaction(IMAGE_REQUEST_CACHE_STORE, "readonly");
+    const store = transaction.objectStore(IMAGE_REQUEST_CACHE_STORE);
+    const request = store.get(key);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error || new Error("Failed to read image request cache."));
+  });
+  database.close();
+  return record?.imageDataUrl ? record : null;
+}
+
+async function writeImageRequestCache(key, imageDataUrl, metadata = {}) {
+  const database = await openImageRequestCache();
+  await new Promise((resolve, reject) => {
+    const transaction = database.transaction(IMAGE_REQUEST_CACHE_STORE, "readwrite");
+    const store = transaction.objectStore(IMAGE_REQUEST_CACHE_STORE);
+    store.put({
+      key,
+      imageDataUrl,
+      metadata,
+      createdAt: new Date().toISOString(),
+    });
+    transaction.oncomplete = resolve;
+    transaction.onerror = () => reject(transaction.error || new Error("Failed to write image request cache."));
+  });
+  database.close();
+}
+
+async function imageRequestCacheKey(kind, payload, metadata = {}) {
+  const signature = JSON.stringify({
+    version: 2,
+    kind,
+    payload,
+    metadata,
+  });
+  return `${IMAGE_REQUEST_CACHE_PREFIX}${await digestString(signature)}`;
+}
+
+async function requestImageWithCache(kind, payload, metadata = {}) {
+  const cacheKey = await imageRequestCacheKey(kind, payload, metadata);
+
+  try {
+    const cached = await readImageRequestCache(cacheKey);
+    if (cached?.imageDataUrl) {
+      return {
+        ok: true,
+        imageDataUrl: cached.imageDataUrl,
+        cached: true,
+      };
+    }
+  } catch (error) {
+    console.warn("Failed to read AI image cache", error);
+  }
+
+  if (pendingImageRequests.has(cacheKey)) {
+    return pendingImageRequests.get(cacheKey);
+  }
+
+  const request = requestJson("/api/image", payload)
+    .then(async (data) => {
+      if (data.imageDataUrl) {
+        try {
+          await writeImageRequestCache(cacheKey, data.imageDataUrl, metadata);
+        } catch (error) {
+          console.warn("Failed to write AI image cache", error);
+        }
+      }
+      return {
+        ...data,
+        cached: false,
+      };
+    })
+    .finally(() => {
+      pendingImageRequests.delete(cacheKey);
+    });
+
+  pendingImageRequests.set(cacheKey, request);
+  return request;
+}
+
 const AI_MODE_CONFIG = {
   fast: {
     label: "快速",
@@ -265,13 +393,20 @@ export async function generateGarmentFlatImage(garment, sourceImageDataUrl = "",
 5. 不要文字、不要 logo、不要人物、不要模特、不要水印。
 `;
 
-  const data = await requestJson("/api/image", {
+  const payload = {
     prompt,
     imageDataUrl: sourceImageDataUrl,
     size: mode.flatImageSize,
     quality: mode.imageQuality,
     action: sourceImageDataUrl ? "edit" : "generate",
     reasoningEffort: mode.reasoningEffort,
+  };
+  const data = await requestImageWithCache("garment-flat", payload, {
+    aiMode: options.aiMode || "fast",
+    garmentName: garment.name || "",
+    category: garment.category || "",
+    subcategory: garment.subcategory || "",
+    primaryColor: garment.primaryColor || "",
   });
   return data.imageDataUrl;
 }
@@ -397,13 +532,19 @@ export async function generateOutfitTryOnImage({ garments, scene, bodyProfile, p
 `;
 
   const referenceImages = imageReferencesForTryOn(garments, personImageDataUrl, mode.maxTryOnReferences);
-  const data = await requestJson("/api/image", {
+  const payload = {
     prompt,
     imageDataUrls: referenceImages,
     size: mode.tryOnSize,
     quality: mode.imageQuality,
     action: referenceImages.length ? "edit" : "generate",
     reasoningEffort: mode.reasoningEffort,
+  };
+  const data = await requestImageWithCache("outfit-try-on", payload, {
+    aiMode,
+    scene: scene || "",
+    garmentIds: garments.map((garment) => garment.id || garment.name || ""),
+    hasPersonReference,
   });
   return data.imageDataUrl;
 }
