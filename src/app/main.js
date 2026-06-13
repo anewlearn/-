@@ -15,7 +15,7 @@ import { buildOutfitRecommendations, getTodayRecommendation } from "../services/
 import { renderCapture } from "../features/capture/capture.js";
 import { renderHome } from "../features/home/home.js";
 import { renderOutfit } from "../features/outfit-builder/outfit.js";
-import { renderSettings } from "../features/settings/settings.js";
+import { renderBodyModel, renderSettings } from "../features/settings/settings.js";
 import { renderWardrobe } from "../features/wardrobe/wardrobe.js";
 import {
   clearRuntimeApiKey,
@@ -32,6 +32,7 @@ import {
 const root = document.querySelector("#app");
 let database = loadDatabase();
 let toastTimer = null;
+let quietServerPersistTimer = null;
 
 function pickFirst(category) {
   return database.garments.find((garment) => garment.category === category && garment.status === "可穿")?.id || "";
@@ -98,6 +99,47 @@ function persist() {
     console.warn("Failed to save wardrobe database to server", error);
   });
   refreshStorageInfo();
+}
+
+function persistQuietly() {
+  database.updatedAt = new Date().toISOString();
+  saveDatabase(database);
+  window.clearTimeout(quietServerPersistTimer);
+  quietServerPersistTimer = window.setTimeout(() => {
+    saveDatabaseToServer(database).catch((error) => {
+      console.warn("Failed to save wardrobe database to server", error);
+    });
+  }, 500);
+}
+
+function updateProfilePreview(key, value) {
+  const valueLabel = root.querySelector(`[data-profile-value="${key}"]`);
+  if (valueLabel) {
+    valueLabel.textContent = `${value}${valueLabel.dataset.unit || ""}`;
+  }
+
+  const model = root.querySelector(".body-model");
+  if (model) {
+    model.outerHTML = renderBodyModel(database.bodyProfile);
+  }
+}
+
+function updatePreferenceValue(key, value) {
+  const valueLabel = root.querySelector(`[data-preference-value="${key}"]`);
+  if (valueLabel) {
+    valueLabel.textContent = String(value);
+  }
+}
+
+function keepScreenPosition(target, update) {
+  const screen = target.closest(".screen");
+  const scrollTop = screen?.scrollTop || 0;
+  update();
+  if (!screen) return;
+  screen.scrollTop = scrollTop;
+  window.requestAnimationFrame(() => {
+    screen.scrollTop = scrollTop;
+  });
 }
 
 async function hydrateDatabaseFromServer() {
@@ -829,16 +871,23 @@ function handleInput(event) {
   const target = event.target;
 
   if (target.matches("[data-profile]")) {
-    database.bodyProfile[target.dataset.profile] = Number(target.value);
-    persist();
-    render();
+    const key = target.dataset.profile;
+    const value = Number(target.value);
+    keepScreenPosition(target, () => {
+      database.bodyProfile[key] = value;
+      updateProfilePreview(key, value);
+      persistQuietly();
+    });
     return;
   }
 
   if (target.matches("[data-preference='formality']")) {
-    database.preference.formality = Number(target.value);
-    persist();
-    render();
+    const value = Number(target.value);
+    keepScreenPosition(target, () => {
+      database.preference.formality = value;
+      updatePreferenceValue("formality", value);
+      persistQuietly();
+    });
   }
 }
 

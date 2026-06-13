@@ -5,7 +5,7 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, Number(value || 0)));
 }
 
-function renderBodyModel(profile) {
+export function renderBodyModel(profile) {
   const shoulder = clamp(profile.shoulderWidth || 42, 34, 52) * 1.34;
   const waist = clamp(profile.waist || 68, 56, 92) * 0.72;
   const hips = clamp(profile.hips || 92, 76, 118) * 0.64;
@@ -46,7 +46,7 @@ function renderBodyModel(profile) {
 function slider(label, key, value, min, max, unit) {
   return `
     <label class="slider-row">
-      <span class="slider-head"><span>${escapeHtml(label)}</span><span>${value}${unit}</span></span>
+      <span class="slider-head"><span>${escapeHtml(label)}</span><span data-profile-value="${key}" data-unit="${unit}">${value}${unit}</span></span>
       <input type="range" min="${min}" max="${max}" value="${value}" data-profile="${key}" />
     </label>
   `;
@@ -249,7 +249,7 @@ export function renderSettings(database, ui) {
           ${preferenceChips(STYLE_TAGS, preference.styles, "styles")}
         </div>
         <div class="preference-row">
-          <span class="slider-head"><span>正式程度倾向</span><span>${preference.formality}</span></span>
+          <span class="slider-head"><span>正式程度倾向</span><span data-preference-value="formality">${preference.formality}</span></span>
           <input type="range" min="0" max="100" value="${preference.formality}" data-preference="formality" />
         </div>
       </section>
