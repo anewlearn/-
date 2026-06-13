@@ -743,7 +743,7 @@ function handleClick(event) {
 async function handleChange(event) {
   const target = event.target;
 
-  if (target.id === "capture-file") {
+  if (target.matches("[data-capture-file]")) {
     const file = target.files?.[0];
     if (!file) return;
     resetCapture();

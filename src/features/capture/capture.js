@@ -166,12 +166,20 @@ export function renderCapture(database, ui) {
               ${capture.aiError ? `<p class="error-box">AI 调用失败：${escapeHtml(capture.aiError)}</p>` : ""}
             `
             : `
-              <label class="upload-zone">
-                <input id="capture-file" type="file" accept="image/*" capture="environment" />
-                <span class="nav-icon">${icon("camera", 34)}</span>
-                <strong>拍照或选择照片</strong>
-                <span>一次处理一张照片，后续再支持批量导入</span>
-              </label>
+              <div class="upload-zone upload-zone--choices">
+                <label class="upload-choice">
+                  <input data-capture-file="camera" type="file" accept="image/*" capture="environment" />
+                  <span class="nav-icon">${icon("camera", 32)}</span>
+                  <strong>拍照</strong>
+                  <span>调用相机拍一张</span>
+                </label>
+                <label class="upload-choice">
+                  <input data-capture-file="album" type="file" accept="image/*" />
+                  <span class="nav-icon">${icon("wardrobe", 32)}</span>
+                  <strong>从相册选择</strong>
+                  <span>选择已有照片</span>
+                </label>
+              </div>
             `
         }
 
