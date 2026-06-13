@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="搭一下测试版：AI 电子衣橱、穿搭推荐和虚拟试穿 Web MVP"
+    />
+    <meta name="theme-color" content="#b9264f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="搭一下" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./src/assets/icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./src/assets/icons/icon-192.png" />
+    <title>搭一下 | Web MVP</title>
+    <link rel="stylesheet" href="./src/core/design-system/styles.css" />
+  </head>
+  <body>
+    <main id="app" aria-live="polite"></main>
+    <script type="module" src="./src/app/main.js"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./service-worker.js").catch((error) => {
+            console.warn("Service worker registration failed", error);
+          });
+        });
+      }
+    </script>
+  </body>
+</html>

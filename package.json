@@ -1,0 +1,9 @@
+{
+  "name": "style-tap-web-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve": "python server.py"
+  }
+}

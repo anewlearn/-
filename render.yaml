@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: styletap-web
+    runtime: python
+    plan: free
+    buildCommand: python -m py_compile server.py
+    startCommand: python server.py
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
+      - key: DISABLE_SERVER_DATABASE
+        value: "true"
+      - key: DISABLE_RUNTIME_API_KEY
+        value: "true"
+      - key: OPENAI_BASE_URL
+        value: https://ai-us.hctopup.com/v1
+      - key: OPENAI_MODEL
+        value: gpt-5.5
+      - key: OPENAI_IMAGE_MODEL
+        value: gpt-image-2
+      - key: OPENAI_REASONING_EFFORT
+        value: xhigh
+      - key: OPENAI_API_KEY
+        sync: false

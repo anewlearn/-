@@ -1,0 +1,32 @@
+{
+  "name": "搭一下",
+  "short_name": "搭一下",
+  "description": "AI 电子衣橱、穿搭推荐和虚拟试穿测试版",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fff8f5",
+  "theme_color": "#b9264f",
+  "categories": ["lifestyle", "shopping", "productivity"],
+  "icons": [
+    {
+      "src": "./src/assets/icons/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./src/assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./src/assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
