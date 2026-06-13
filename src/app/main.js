@@ -204,9 +204,10 @@ function showToast(message) {
 }
 
 function navigate(tab) {
+  const isSameTab = ui.tab === tab;
   ui.tab = tab;
   ui.detailId = null;
-  render();
+  render({ preserveScroll: isSameTab });
 }
 
 function resetCapture() {
@@ -891,7 +892,33 @@ function handleInput(event) {
   }
 }
 
-function render() {
+function readScreenPosition() {
+  const screen = root.querySelector(".screen");
+  if (!screen) {
+    return null;
+  }
+  return {
+    page: screen.dataset.page || "",
+    scrollTop: screen.scrollTop,
+  };
+}
+
+function restoreScreenPosition(previous) {
+  if (!previous) return;
+  const screen = root.querySelector(".screen");
+  if (!screen || screen.dataset.page !== previous.page) {
+    return;
+  }
+  const restore = () => {
+    screen.scrollTop = previous.scrollTop;
+  };
+  restore();
+  window.requestAnimationFrame(restore);
+}
+
+function render(options = {}) {
+  const { preserveScroll = true } = options;
+  const previousPosition = preserveScroll ? readScreenPosition() : null;
   const activePage = pages[ui.tab] ? pages[ui.tab]() : pages.home();
   const detailGarment = ui.detailId ? byId(database.garments, ui.detailId) : null;
   root.innerHTML = `
@@ -902,6 +929,7 @@ function render() {
       ${renderToast(ui.toast)}
     </div>
   `;
+  restoreScreenPosition(previousPosition);
 }
 
 root.addEventListener("click", handleClick);
