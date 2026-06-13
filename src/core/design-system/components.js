@@ -90,6 +90,10 @@ export function renderGarmentCard(garment, options = {}) {
   const compact = options.compact ? "is-compact" : "";
   return `
     <article class="garment-card ${compact}" data-garment-card="${garment.id}">
+      <button class="match-button" data-action="send-to-outfit" data-id="${garment.id}" type="button" aria-label="加入搭配">
+        ${icon("sparkles", 14)}
+        <span>搭配</span>
+      </button>
       <button class="favorite-button ${garment.isFavorite ? "is-on" : ""}" data-action="toggle-favorite" data-id="${garment.id}" type="button" aria-label="收藏">
         ${icon("heart", 16)}
       </button>
@@ -174,6 +178,12 @@ export function renderDetailSheet(garment) {
           </select>
           ${renderAiTagList(garment.aiTags)}
           <p class="note-box">${escapeHtml(garment.notes)}</p>
+          <div class="button-row detail-actions">
+            <button class="primary-button" data-action="send-to-outfit" data-id="${garment.id}" type="button">
+              ${icon("sparkles", 17)}
+              加入搭配
+            </button>
+          </div>
         </div>
       </section>
     </div>

@@ -614,6 +614,27 @@ function applyGarmentsToLayers(garmentIDs) {
   ui.outfitSelections = { ...ui.outfitSelections, ...next };
 }
 
+function outfitLayerForGarment(garment) {
+  return OUTFIT_LAYERS.find((layer) => layer.accepts.includes(garment.category)) || null;
+}
+
+function sendGarmentToOutfit(id) {
+  const garment = byId(database.garments, id);
+  if (!garment) {
+    showToast("没有找到这件衣服");
+    return;
+  }
+  const layer = outfitLayerForGarment(garment);
+  if (!layer) {
+    showToast("这类单品暂时不能加入搭配");
+    return;
+  }
+  ui.outfitSelections[layer.key] = garment.id;
+  ui.detailId = null;
+  ui.tab = "outfit";
+  showToast(`已把${garment.name}放入${layer.label}`);
+}
+
 function saveOutfit(name, garmentIDs, occasion) {
   if (!garmentIDs.length) return false;
   database.outfits.unshift({
@@ -698,6 +719,9 @@ async function handleAction(event) {
     case "open-garment":
       ui.detailId = id;
       render();
+      break;
+    case "send-to-outfit":
+      sendGarmentToOutfit(id);
       break;
     case "close-sheet":
       ui.detailId = null;
