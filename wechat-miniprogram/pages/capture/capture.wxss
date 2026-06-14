@@ -6,6 +6,10 @@
 }
 
 .hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20rpx;
   margin-bottom: 24rpx;
 }
 
@@ -28,6 +32,22 @@
   margin-top: 10rpx;
   font-size: 26rpx;
   line-height: 1.55;
+}
+
+.hero-badge {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8rpx;
+  padding-top: 8rpx;
+}
+
+.hero-badge text {
+  padding: 8rpx 14rpx;
+  border-radius: 999rpx;
+  color: #7d2c4a;
+  background: #ffe8ef;
+  font-size: 22rpx;
+  font-weight: 800;
 }
 
 .ai-banner {
@@ -89,7 +109,8 @@
 }
 
 .mode,
-.primary {
+.primary,
+.ghost {
   height: 86rpx;
   line-height: 86rpx;
   border-radius: 28rpx;
@@ -109,6 +130,17 @@
   background: #c02655;
 }
 
+.mode[disabled],
+.primary[disabled] {
+  opacity: 0.72;
+}
+
+.ghost {
+  margin-top: 18rpx;
+  color: #5f555a;
+  background: #f7f2ef;
+}
+
 .options,
 .queue,
 .results {
@@ -124,12 +156,27 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 72rpx;
+  gap: 20rpx;
+  min-height: 86rpx;
   font-size: 27rpx;
 }
 
 .option-row:first-child {
   border-bottom: 1rpx solid #f5eeeb;
+}
+
+.option-title {
+  display: block;
+  color: #171014;
+  font-weight: 850;
+}
+
+.option-sub {
+  display: block;
+  margin-top: 6rpx;
+  color: #81767c;
+  font-size: 22rpx;
+  line-height: 1.35;
 }
 
 .select {
@@ -138,13 +185,25 @@
   border-radius: 22rpx;
   background: #f7f2ef;
   text-align: center;
-  font-weight: 700;
+  font-weight: 800;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-bottom: 16rpx;
+}
+
+.section-title {
+  font-size: 31rpx;
+  font-weight: 850;
 }
 
 .queue-item {
   display: flex;
   gap: 18rpx;
-  padding: 16rpx 0;
+  padding: 18rpx 0;
   border-top: 1rpx solid #f4eeeb;
 }
 
@@ -153,12 +212,14 @@
 }
 
 .queue-img {
-  width: 96rpx;
-  height: 96rpx;
-  border-radius: 22rpx;
+  width: 108rpx;
+  height: 108rpx;
+  border-radius: 24rpx;
+  background: #f8f0ea;
 }
 
 .queue-copy {
+  flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -166,28 +227,55 @@
   min-width: 0;
 }
 
+.queue-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
 .queue-name {
-  font-weight: 800;
+  font-weight: 850;
+}
+
+.queue-percent {
+  color: #c02655;
+  font-size: 23rpx;
+  font-weight: 850;
 }
 
 .queue-status {
   color: #7b579d;
   font-size: 24rpx;
+  line-height: 1.35;
 }
 
-.queue-status.error {
+.queue-status.error,
+.error-box {
   color: #c02655;
 }
 
-.section-head {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 16rpx;
+.mini-link {
+  align-self: flex-start;
+  width: 190rpx;
+  margin: 0;
+  padding: 0 18rpx;
+  height: 50rpx;
+  line-height: 50rpx;
+  border-radius: 18rpx;
+  color: #c02655;
+  background: #fff0f4;
+  font-size: 22rpx;
+  font-weight: 800;
 }
 
-.section-title {
-  font-size: 31rpx;
-  font-weight: 850;
+.error-box {
+  display: block;
+  margin-top: 12rpx;
+  padding: 16rpx;
+  border-radius: 20rpx;
+  background: #fff0f4;
+  font-size: 23rpx;
+  line-height: 1.45;
 }
 
 .grid {
@@ -203,6 +291,10 @@
   background: #fbf7f4;
 }
 
+.image-shell {
+  position: relative;
+}
+
 .garment-img,
 .visual {
   width: 100%;
@@ -211,11 +303,23 @@
   background: #f8f0ea;
 }
 
+.image-pill {
+  position: absolute;
+  left: 12rpx;
+  bottom: 12rpx;
+  padding: 7rpx 12rpx;
+  border-radius: 999rpx;
+  color: #7d2c4a;
+  background: rgba(255, 240, 244, 0.92);
+  font-size: 20rpx;
+  font-weight: 800;
+}
+
 .name {
   display: block;
   margin-top: 12rpx;
   font-size: 26rpx;
-  font-weight: 800;
+  font-weight: 850;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

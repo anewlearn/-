@@ -54,3 +54,23 @@ services:
         value: https://da-xia.onrender.com/api/wechat/pay/notify
       - key: WECHAT_PAY_DEFAULT_AMOUNT_CENTS
         value: "990"
+      - key: PUBLIC_APP_URL
+        value: https://da-xia.onrender.com
+      - key: PROCESSING_WORKERS
+        value: "1"
+      - key: MAX_IMAGE_UPLOAD_BYTES
+        value: "30000000"
+      - key: TASK_IMAGE_LIMIT_FAST
+        value: "4"
+      - key: TASK_IMAGE_LIMIT_NORMAL
+        value: "8"
+      - key: UPLOAD_RETENTION_SECONDS
+        value: "3600"
+      - key: GENERATED_RETENTION_SECONDS
+        value: "86400"
+      - key: TASK_RECORD_RETENTION_SECONDS
+        value: "604800"
+      - key: CLEANUP_INTERVAL_SECONDS
+        value: "1800"
+      - key: CLEANUP_TOKEN
+        sync: false

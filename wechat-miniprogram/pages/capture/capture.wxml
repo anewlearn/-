@@ -1,10 +1,16 @@
 <view class="page">
   <view class="hero">
-    <text class="title">拍照识衣</text>
-    <text class="sub">选择单品照或全身照，系统会按队列逐张处理。</text>
+    <view>
+      <text class="title">拍照识衣</text>
+      <text class="sub">一次最多 10 张原图上传，后端保存高清照片并按队列识别。</text>
+    </view>
+    <view class="hero-badge">
+      <text>异步</text>
+      <text>高清</text>
+    </view>
   </view>
 
-  <view class="ai-banner {{aiReady ? 'ready' : 'warn'}}">
+  <view class="ai-banner {{aiReady && asyncReady ? 'ready' : 'warn'}}">
     <view>
       <text class="ai-title">{{aiStatus}}</text>
       <text class="ai-detail">{{aiStatusDetail}}</text>
@@ -13,38 +19,54 @@
   </view>
 
   <view class="mode-row">
-    <button class="mode {{mode == 'single' ? 'active' : ''}}" data-mode="single" bindtap="setMode">单品</button>
-    <button class="mode {{mode == 'outfit' ? 'active' : ''}}" data-mode="outfit" bindtap="setMode">整套</button>
+    <button class="mode {{mode == 'single' ? 'active' : ''}}" data-mode="single" disabled="{{processing || uploading}}" bindtap="setMode">单品</button>
+    <button class="mode {{mode == 'outfit' ? 'active' : ''}}" data-mode="outfit" disabled="{{processing || uploading}}" bindtap="setMode">整套</button>
   </view>
 
   <view class="options">
     <view class="option-row">
-      <text>识别模式</text>
-      <picker range="{{aiModes}}" value="{{aiModeIndex}}" bindchange="changeAiMode">
+      <view>
+        <text class="option-title">识别模式</text>
+        <text class="option-sub">{{aiMode == 'fast' ? '优先速度，适合批量入库' : '更细致地分析遮挡、鞋包和标签'}}</text>
+      </view>
+      <picker range="{{aiModes}}" value="{{aiModeIndex}}" disabled="{{processing || uploading}}" bindchange="changeAiMode">
         <view class="select">{{aiModeLabel}}</view>
       </picker>
     </view>
     <view class="option-row">
-      <text>生成 AI 单品图</text>
-      <switch checked="{{generateFlat}}" color="#c02655" bindchange="toggleGenerateFlat"></switch>
+      <view>
+        <text class="option-title">AI 单品平面图</text>
+        <text class="option-sub">后台生成，失败时保留原图和标签</text>
+      </view>
+      <switch checked="{{generateFlat}}" disabled="{{processing || uploading}}" color="#c02655" bindchange="toggleGenerateFlat"></switch>
     </view>
   </view>
 
-  <button class="primary" loading="{{processing}}" disabled="{{processing}}" bindtap="chooseImages">
-    {{processing ? '正在处理队列' : '选择图片 / 拍照'}}
+  <button class="primary" loading="{{processing || uploading}}" disabled="{{processing || uploading}}" bindtap="chooseImages">
+    {{processing || uploading ? '后台任务进行中' : '选择图片 / 拍照'}}
   </button>
 
   <view wx:if="{{queue.length}}" class="queue">
-    <text class="section-title">处理队列</text>
+    <view class="section-head">
+      <text class="section-title">处理队列</text>
+      <text class="muted">{{queueSummary}}</text>
+    </view>
     <block wx:for="{{queue}}" wx:key="id">
       <view class="queue-item">
         <image class="queue-img" src="{{item.path}}" mode="aspectFill"></image>
         <view class="queue-copy">
-          <text class="queue-name">{{item.name}}</text>
-          <text class="queue-status {{item.error ? 'error' : ''}}">{{item.status}}</text>
+          <view class="queue-line">
+            <text class="queue-name">{{item.name}}</text>
+            <text class="queue-percent">{{item.progress || 0}}%</text>
+          </view>
+          <progress percent="{{item.progress || 0}}" stroke-width="4" activeColor="#c02655" backgroundColor="#f2e8e3"></progress>
+          <text class="queue-status {{item.error ? 'error' : ''}}">{{item.statusText}}</text>
+          <button wx:if="{{item.status == 'failed' && !item.taskId}}" class="mini-link" data-id="{{item.id}}" bindtap="addFallbackForFailed">保留为待确认</button>
         </view>
       </view>
     </block>
+    <text wx:if="{{lastError}}" class="error-box">{{lastError}}</text>
+    <button wx:if="{{!processing && !uploading}}" class="ghost" bindtap="clearQueue">清空队列</button>
   </view>
 
   <view wx:if="{{pendingGarments.length}}" class="results">
@@ -55,8 +77,11 @@
     <view class="grid">
       <block wx:for="{{pendingGarments}}" wx:key="id">
         <view class="card">
-          <image wx:if="{{item.imagePath}}" class="garment-img" src="{{item.imagePath}}" mode="aspectFit"></image>
-          <view wx:else class="visual" style="background: {{item.colorHex}};"></view>
+          <view class="image-shell">
+            <image wx:if="{{item.imagePath}}" class="garment-img" src="{{item.imagePath}}" mode="aspectFit"></image>
+            <view wx:else class="visual" style="background: {{item.colorHex}};"></view>
+            <text class="image-pill">{{item.statusText}}</text>
+          </view>
           <text class="name">{{item.name}}</text>
           <text class="meta">{{item.category}} · {{item.primaryColor}}</text>
           <text class="tags">{{item.tagsText}}</text>

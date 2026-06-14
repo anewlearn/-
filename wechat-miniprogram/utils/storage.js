@@ -54,6 +54,8 @@ function makeGarment(overrides) {
     notes: overrides.notes || "",
     imagePath: overrides.imagePath || "",
     originalImagePath: overrides.originalImagePath || "",
+    imageStatus: overrides.imageStatus || "",
+    imageError: overrides.imageError || "",
     isFavorite: Boolean(overrides.isFavorite),
     wearCount: Number(overrides.wearCount || 0),
     lastWornDate: overrides.lastWornDate || "",
@@ -242,6 +244,27 @@ function saveLocalFile(tempFilePath) {
   });
 }
 
+function downloadAndSaveFile(url) {
+  return new Promise((resolve, reject) => {
+    if (!url || !/^https?:\/\//.test(String(url))) {
+      resolve(url || "");
+      return;
+    }
+    wx.downloadFile({
+      url,
+      timeout: 180000,
+      success: async (result) => {
+        if (result.statusCode < 200 || result.statusCode >= 300 || !result.tempFilePath) {
+          reject(new Error(`下载图片失败：${result.statusCode || "无状态码"}`));
+          return;
+        }
+        resolve(await saveLocalFile(result.tempFilePath));
+      },
+      fail: (error) => reject(new Error(error.errMsg || "下载图片失败"))
+    });
+  });
+}
+
 module.exports = {
   STORAGE_KEY,
   uid,
@@ -250,6 +273,7 @@ module.exports = {
   saveDatabase,
   resetDatabase,
   saveLocalFile,
+  downloadAndSaveFile,
   saveOutfitDraft,
   loadOutfitDraft,
   defaultOutfitSelections,

@@ -1,5 +1,5 @@
 module.exports = {
-  buildVersion: "native-20260614-2240",
+  buildVersion: "native-20260615-cleanup",
   apiBaseUrl: "https://da-xia.onrender.com",
   paymentSku: {
     productId: "styletap_membership_month",

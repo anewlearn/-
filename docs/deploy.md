@@ -117,6 +117,30 @@ WECHAT_PAY_NOTIFY_URL=https://da-xia.onrender.com/api/wechat/pay/notify
 WECHAT_PAY_DEFAULT_AMOUNT_CENTS=990
 ```
 
+图片异步处理相关环境变量可选：
+
+```text
+PUBLIC_APP_URL=https://da-xia.onrender.com
+PROCESSING_WORKERS=1
+MAX_IMAGE_UPLOAD_BYTES=30000000
+TASK_IMAGE_LIMIT_FAST=4
+TASK_IMAGE_LIMIT_NORMAL=8
+UPLOAD_RETENTION_SECONDS=3600
+GENERATED_RETENTION_SECONDS=86400
+TASK_RECORD_RETENTION_SECONDS=604800
+CLEANUP_INTERVAL_SECONDS=1800
+CLEANUP_TOKEN=一段随机清理口令
+```
+
+小程序会把原图上传到 `/api/processing/upload`，后端保存高清原图到 `data/uploads`，再由后台队列调用 AI 识别和生图。`PUBLIC_APP_URL` 建议在 Render 中填写成线上域名，方便 AI 直接读取已上传图片 URL。
+
+默认清理策略：
+
+- 原图任务完成后最多临时保留 1 小时。
+- 生成的 AI 图片最多临时保留 24 小时，给小程序下载到本机。
+- 小程序成功下载 AI 图片后会调用 `/api/processing/ack`，后端立即删除该任务的原图和生成图。
+- 任务记录默认保留 7 天，只保留小体积 JSON 元数据。
+
 完整步骤见 `docs/wechat-miniprogram.md`。
 
 ## 公开发布前需要改造

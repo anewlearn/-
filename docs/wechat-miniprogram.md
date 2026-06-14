@@ -3,8 +3,8 @@
 当前版本采用真正原生微信小程序页面，不再使用 `web-view`：
 
 - 原生页面：首页、衣橱、拍照、搭配、我的。
-- 原生能力：`wx.chooseMedia` 选择图片，`wx.saveFile` 保存图片，`wx.setStorageSync` 保存衣橱数据。
-- 服务端：负责 `wx.login` 换取微信用户会话、JSAPI 下单、支付参数签名。
+- 原生能力：`wx.chooseMedia` 选择图片，`wx.setStorageSync` 保存衣橱数据。
+- 服务端：负责原图保存、后台识别队列、AI 生图、`wx.login` 换取微信用户会话、JSAPI 下单、支付参数签名。
 
 ## 1. 微信公众平台配置
 
@@ -13,6 +13,8 @@
 1. 获取小程序 `AppID` 和 `AppSecret`。
 2. 在“开发管理 -> 开发设置 -> 服务器域名”中添加：
    - `request 合法域名`：`https://da-xia.onrender.com`
+   - `uploadFile 合法域名`：`https://da-xia.onrender.com`
+   - `downloadFile 合法域名`：`https://da-xia.onrender.com`
 3. 如果要正式支付，需要在微信支付商户平台绑定该小程序 AppID。
 
 本版本不使用 `web-view`，所以不需要配置“业务域名”。本地开发时可以在微信开发者工具里临时勾选“不校验合法域名”，但正式预览、体验版和线上版必须配置 `request 合法域名`。
@@ -84,6 +86,9 @@ module.exports = {
 ## 5. 已实现接口
 
 ```text
+POST /api/processing/upload
+GET  /api/processing/tasks
+GET  /api/processing/task?id=...
 GET  /api/wechat/config
 POST /api/wechat/login
 POST /api/wechat/pay/create
@@ -92,6 +97,9 @@ POST /api/wechat/pay/notify
 
 说明：
 
+- `/api/processing/upload` 接收小程序原图 multipart 上传，保存到 `data/uploads`，并创建后台 AI 任务。
+- `/api/processing/tasks` 用于小程序轮询任务进度；同图、同模式、同生图设置会复用缓存结果。
+- `/api/processing/ack` 在小程序成功把 AI 图片下载并保存到本机后调用，服务端立即删除该任务的原图和临时生成图。
 - `/api/wechat/login` 接收小程序 `wx.login` 返回的 `code`，服务端调用微信 `code2Session`。
 - 服务端只返回签名后的 `sessionToken`，不会把微信 `session_key` 返回给小程序端。
 - `/api/wechat/pay/create` 使用登录态中的 `openid` 创建微信支付 JSAPI 订单，并返回 `wx.requestPayment` 所需参数。
@@ -102,12 +110,18 @@ POST /api/wechat/pay/notify
 ```text
 pages/home/home       首页：今日推荐、快捷场景、最近加入、衣橱概览
 pages/wardrobe        衣橱：分类、季节筛选、收藏、删除、加入搭配
-pages/capture         拍照：单品/整套模式，最多 10 张，队列处理，AI 打标签
+pages/capture         拍照：单品/整套模式，最多 10 张原图上传，后端队列处理，AI 打标签和生图
 pages/outfit          搭配：分层选择单品，三套推荐，保存穿搭
 pages/profile         我的：微信登录、支付、身体参数、本地数据重置
 ```
 
 衣橱、图片和身体参数保存在当前用户的小程序本地缓存中。重新打开小程序仍会保留；用户卸载小程序或清理微信缓存后，本地数据可能被清除。正式多用户长期使用时，建议再加账号数据库和对象存储。
+
+AI 处理图片的保存策略：
+
+- Render 只临时保存原图和生成图，用于 AI 识别、生图和小程序下载。
+- 小程序拿到 AI 图片 URL 后会立刻 `wx.downloadFile` 并 `wx.saveFile` 到用户手机本地。
+- 保存成功后小程序会通知后端清理该任务图片；如果用户没有及时打开结果页，后端也会按 TTL 自动清理。
 
 ## 7. 官方文档
 
