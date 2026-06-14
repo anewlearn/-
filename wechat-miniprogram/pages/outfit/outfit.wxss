@@ -1,0 +1,172 @@
+.page {
+  min-height: 100vh;
+  padding: 30rpx 26rpx 190rpx;
+  box-sizing: border-box;
+  background: #fffaf7;
+}
+
+.title {
+  display: block;
+  font-size: 44rpx;
+  font-weight: 850;
+}
+
+.sub,
+.layer-name,
+.reason,
+.empty {
+  color: #81767c;
+}
+
+.sub {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 25rpx;
+  line-height: 1.5;
+}
+
+.layers,
+.preview,
+.recommend {
+  margin-top: 24rpx;
+  padding: 22rpx;
+  border-radius: 30rpx;
+  border: 1rpx solid #f0e6e1;
+  background: #ffffff;
+  box-shadow: 0 16rpx 42rpx rgba(90, 62, 48, 0.07);
+}
+
+.layer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 92rpx;
+  border-top: 1rpx solid #f5eeeb;
+}
+
+.layer-row:first-child {
+  border-top: 0;
+}
+
+.layer-copy {
+  min-width: 0;
+}
+
+.layer-label {
+  display: block;
+  font-weight: 850;
+  font-size: 28rpx;
+}
+
+.layer-name {
+  display: block;
+  max-width: 410rpx;
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select,
+.scene-select {
+  padding: 12rpx 22rpx;
+  border-radius: 22rpx;
+  color: #c02655;
+  background: #fff0f4;
+  font-size: 25rpx;
+  font-weight: 800;
+}
+
+.preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  min-height: 180rpx;
+}
+
+.preview-item {
+  width: 150rpx;
+  text-align: center;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.preview-item image,
+.preview-visual {
+  width: 150rpx;
+  height: 150rpx;
+  border-radius: 24rpx;
+  background: #fbf6f2;
+}
+
+.empty {
+  width: 100%;
+  text-align: center;
+  padding: 50rpx 0;
+}
+
+.primary {
+  margin-top: 22rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 28rpx;
+  background: #c02655;
+  color: #ffffff;
+  font-weight: 850;
+}
+
+.section-head,
+.plan-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.section-head.compact {
+  margin-bottom: 18rpx;
+}
+
+.section-title,
+.plan-title {
+  font-size: 31rpx;
+  font-weight: 850;
+}
+
+.plan {
+  padding: 20rpx 0;
+  border-top: 1rpx solid #f5eeeb;
+}
+
+.plan:first-of-type {
+  border-top: 0;
+}
+
+.keywords {
+  color: #7b579d;
+  font-size: 23rpx;
+}
+
+.reason {
+  display: block;
+  margin: 10rpx 0 14rpx;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+}
+
+.chip {
+  margin: 0;
+  padding: 0 18rpx;
+  height: 54rpx;
+  line-height: 54rpx;
+  border-radius: 24rpx;
+  background: #f7f2ef;
+  color: #171014;
+  font-size: 22rpx;
+}

@@ -1,0 +1,56 @@
+{
+  "pages": [
+    "pages/home/home",
+    "pages/wardrobe/wardrobe",
+    "pages/capture/capture",
+    "pages/outfit/outfit",
+    "pages/profile/profile"
+  ],
+  "window": {
+    "navigationBarTitleText": "搭一下",
+    "navigationBarBackgroundColor": "#fffaf7",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#fffaf7"
+  },
+  "style": "v2",
+  "tabBar": {
+    "custom": true,
+    "color": "#8a7f86",
+    "selectedColor": "#c02655",
+    "backgroundColor": "#fffaf7",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/home/home",
+        "text": "首页",
+        "iconPath": "assets/tab.png",
+        "selectedIconPath": "assets/tab.png"
+      },
+      {
+        "pagePath": "pages/wardrobe/wardrobe",
+        "text": "衣橱",
+        "iconPath": "assets/tab.png",
+        "selectedIconPath": "assets/tab.png"
+      },
+      {
+        "pagePath": "pages/capture/capture",
+        "text": "拍照",
+        "iconPath": "assets/tab.png",
+        "selectedIconPath": "assets/tab.png"
+      },
+      {
+        "pagePath": "pages/outfit/outfit",
+        "text": "搭配",
+        "iconPath": "assets/tab.png",
+        "selectedIconPath": "assets/tab.png"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的",
+        "iconPath": "assets/tab.png",
+        "selectedIconPath": "assets/tab.png"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json"
+}

@@ -1,0 +1,179 @@
+.page {
+  min-height: 100vh;
+  padding: 32rpx 28rpx 190rpx;
+  box-sizing: border-box;
+  background: #fffaf7;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  margin-bottom: 28rpx;
+}
+
+.hello {
+  font-size: 48rpx;
+  font-weight: 850;
+  color: #171014;
+}
+
+.sub,
+.muted,
+.reason,
+.overview-sub {
+  color: #7d7278;
+}
+
+.section,
+.recommend,
+.overview {
+  margin-top: 24rpx;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18rpx;
+}
+
+.section-title {
+  font-size: 34rpx;
+  font-weight: 800;
+}
+
+.text-btn {
+  padding: 0 20rpx;
+  height: 56rpx;
+  border-radius: 28rpx;
+  color: #c02655;
+  background: #fff0f4;
+  font-size: 24rpx;
+}
+
+.outfit-card,
+.overview {
+  border: 1rpx solid #f0e6e1;
+  border-radius: 32rpx;
+  background: #ffffff;
+  box-shadow: 0 18rpx 48rpx rgba(90, 62, 48, 0.08);
+}
+
+.outfit-card {
+  display: grid;
+  grid-template-columns: 220rpx 1fr;
+  gap: 22rpx;
+  padding: 24rpx;
+}
+
+.outfit-preview {
+  min-height: 220rpx;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  align-items: center;
+  justify-content: center;
+  border-radius: 28rpx;
+  background: #fbf6f2;
+}
+
+.outfit-img,
+.visual {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 22rpx;
+}
+
+.visual,
+.mini-visual {
+  opacity: 0.9;
+}
+
+.outfit-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  justify-content: center;
+}
+
+.pill {
+  align-self: flex-start;
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  color: #7b579d;
+  background: #f3e8ff;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.outfit-title {
+  font-size: 32rpx;
+  font-weight: 850;
+}
+
+.reason {
+  font-size: 25rpx;
+  line-height: 1.55;
+}
+
+.scene-scroll {
+  white-space: nowrap;
+}
+
+.scene {
+  display: inline-flex;
+  margin-right: 16rpx;
+  padding: 0 28rpx;
+  height: 68rpx;
+  line-height: 68rpx;
+  border-radius: 34rpx;
+  background: #ffffff;
+  color: #171014;
+  font-size: 26rpx;
+  border: 1rpx solid #efe5e0;
+}
+
+.recent-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16rpx;
+}
+
+.mini-card {
+  min-width: 0;
+  padding: 16rpx;
+  border-radius: 28rpx;
+  background: #ffffff;
+  border: 1rpx solid #f0e6e1;
+  box-shadow: 0 12rpx 32rpx rgba(90, 62, 48, 0.06);
+}
+
+.mini-img,
+.mini-visual {
+  width: 100%;
+  height: 142rpx;
+  border-radius: 22rpx;
+  background: #fbf6f2;
+}
+
+.mini-name {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 23rpx;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview {
+  padding: 26rpx;
+}
+
+.overview-main {
+  display: block;
+  margin-bottom: 10rpx;
+  font-size: 30rpx;
+  font-weight: 800;
+}

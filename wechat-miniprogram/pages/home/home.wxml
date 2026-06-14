@@ -1,0 +1,58 @@
+<view class="page">
+  <view class="header">
+    <text class="hello">今天想怎么搭？</text>
+    <text class="sub">你的衣服，值得被重新看见。</text>
+  </view>
+
+  <view class="recommend">
+    <view class="section-head">
+      <text class="section-title">今日推荐</text>
+      <button class="text-btn" bindtap="refreshRecommendation">换一套</button>
+    </view>
+    <view class="outfit-card">
+      <view class="outfit-preview">
+        <block wx:for="{{today.garments}}" wx:key="id">
+          <image wx:if="{{item.imagePath}}" class="outfit-img" src="{{item.imagePath}}" mode="aspectFit"></image>
+          <view wx:else class="visual {{item.visual.kind}}" style="background: {{item.colorHex}};"></view>
+        </block>
+      </view>
+      <view class="outfit-copy">
+        <text class="pill">{{today.scene}}</text>
+        <text class="outfit-title">{{today.title}}</text>
+        <text class="reason">{{today.reason}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-head">
+      <text class="section-title">快捷场景</text>
+    </view>
+    <scroll-view scroll-x class="scene-scroll">
+      <block wx:for="{{scenes}}" wx:key="*this">
+        <button class="scene" data-scene="{{item}}" bindtap="openScene">{{item}}</button>
+      </block>
+    </scroll-view>
+  </view>
+
+  <view class="section">
+    <view class="section-head">
+      <text class="section-title">最近加入</text>
+      <text class="muted">{{garmentCount}} 件</text>
+    </view>
+    <view class="recent-grid">
+      <block wx:for="{{recentGarments}}" wx:key="id">
+        <view class="mini-card">
+          <image wx:if="{{item.imagePath}}" class="mini-img" src="{{item.imagePath}}" mode="aspectFit"></image>
+          <view wx:else class="mini-visual {{item.visual.kind}}" style="background: {{item.colorHex}};"></view>
+          <text class="mini-name">{{item.name}}</text>
+        </view>
+      </block>
+    </view>
+  </view>
+
+  <view class="overview">
+    <text class="overview-main">你的衣橱里已有 {{garmentCount}} 件单品</text>
+    <text class="overview-sub">其中 {{availableCount}} 件可穿，{{favoriteCount}} 件已收藏，清洗中的单品不会参与推荐。</text>
+  </view>
+</view>

@@ -1,0 +1,82 @@
+<view class="page">
+  <view class="card account">
+    <view>
+      <text class="title">我的</text>
+      <text class="sub">微信登录、身体参数和会员支付。</text>
+    </view>
+    <text class="{{loggedIn ? 'ok' : 'warn'}}">{{loggedIn ? '已登录' : '未登录'}}</text>
+  </view>
+
+  <view class="card model-card">
+    <view class="body-model">
+      <view class="head"></view>
+      <view class="neck"></view>
+      <view class="shoulders" style="width: {{modelStyle.shoulderWidth}};"></view>
+      <view class="torso" style="width: {{modelStyle.torsoWidth}};"></view>
+      <view class="hips" style="width: {{modelStyle.hipWidth}};"></view>
+      <view class="legs" style="height: {{modelStyle.legHeight}};">
+        <view></view>
+        <view></view>
+      </view>
+      <view class="shoes">
+        <view></view>
+        <view></view>
+      </view>
+    </view>
+    <view class="model-copy">
+      <text class="model-title">二维模特</text>
+      <text class="model-text">参数变化会实时影响肩线、腰臀比例和腿部长度。AI 上身图仅供参考，细节可能不同于实际版型。</text>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="status-row">
+      <text>服务端</text>
+      <text class="{{serverReady ? 'ok' : 'warn'}}">{{serverStatusText}}</text>
+    </view>
+    <view class="status-row">
+      <text>微信接口</text>
+      <text class="{{wechatBackendReady ? 'ok' : 'warn'}}">{{wechatBackendReady ? '新版可用' : '需部署新版后端'}}</text>
+    </view>
+    <view class="status-row">
+      <text>微信登录</text>
+      <text class="{{loginEnabled ? 'ok' : 'warn'}}">{{loginEnabled ? '已配置' : '未配置'}}</text>
+    </view>
+    <view class="status-row">
+      <text>微信支付</text>
+      <text class="{{paymentEnabled ? 'ok' : 'warn'}}">{{paymentEnabled ? '已配置' : '未配置'}}</text>
+    </view>
+    <button class="primary" loading="{{loginLoading}}" disabled="{{loginLoading}}" bindtap="loginWithWechat">
+      {{loggedIn ? '重新登录微信' : '微信一键登录'}}
+    </button>
+    <button class="secondary" loading="{{payLoading}}" disabled="{{payLoading || !loggedIn}}" bindtap="startPayment">
+      开通会员 ¥{{priceText}}
+    </button>
+  </view>
+
+  <view class="card">
+    <text class="section-title">身体参数</text>
+    <block wx:for="{{profileFields}}" wx:key="key">
+      <view class="slider-row">
+        <view class="slider-head">
+          <text>{{item.label}}</text>
+          <text class="value">{{item.value}}{{item.unit}}</text>
+        </view>
+        <slider min="{{item.min}}" max="{{item.max}}" value="{{item.value}}" step="1" activeColor="#c02655" data-key="{{item.key}}" bindchange="changeProfile"></slider>
+      </view>
+    </block>
+  </view>
+
+  <view class="card">
+    <text class="section-title">数据</text>
+    <view class="status-row">
+      <text>当前版本</text>
+      <text>{{buildVersion}}</text>
+    </view>
+    <view class="status-row">
+      <text>衣橱单品</text>
+      <text>{{garmentCount}} 件</text>
+    </view>
+    <button class="danger" bindtap="resetAll">清空并恢复示例数据</button>
+  </view>
+</view>

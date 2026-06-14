@@ -1,0 +1,71 @@
+<view class="page">
+  <scroll-view scroll-x class="tabs">
+    <block wx:for="{{categories}}" wx:key="*this">
+      <button class="tab {{item == category ? 'active' : ''}}" data-value="{{item}}" bindtap="selectCategory">{{item}}</button>
+    </block>
+  </scroll-view>
+
+  <scroll-view scroll-x class="tabs season-tabs">
+    <block wx:for="{{seasons}}" wx:key="*this">
+      <button class="tab small {{item == season ? 'active' : ''}}" data-value="{{item}}" bindtap="selectSeason">{{item}}</button>
+    </block>
+  </scroll-view>
+
+  <view class="section-head">
+    <text class="title">{{category}}单品</text>
+    <text class="muted">{{filtered.length}} 件</text>
+  </view>
+
+  <view class="grid">
+    <block wx:for="{{filtered}}" wx:key="id">
+      <view class="card" data-id="{{item.id}}" bindtap="openDetail">
+        <view class="image-wrap">
+          <button class="fav {{item.isFavorite ? 'on' : ''}}" data-id="{{item.id}}" catchtap="toggleFavorite">{{item.isFavorite ? '♥' : '♡'}}</button>
+          <image wx:if="{{item.imagePath}}" class="garment-img" src="{{item.imagePath}}" mode="aspectFit"></image>
+          <view wx:else class="garment-visual {{item.visual.kind}}">
+            <view class="silhouette {{item.visual.kind}}" style="background: {{item.colorHex}}; color: {{item.colorHex}};"></view>
+          </view>
+          <text wx:if="{{item.imageError}}" class="image-note">原图</text>
+        </view>
+        <text class="name">{{item.name}}</text>
+        <text class="meta">{{item.seasonsText}}</text>
+        <view class="row">
+          <button class="mini-btn" data-id="{{item.id}}" catchtap="sendToOutfit">加入搭配</button>
+          <button class="mini-btn ghost" data-id="{{item.id}}" catchtap="deleteGarment">删除</button>
+        </view>
+      </view>
+    </block>
+  </view>
+
+  <view wx:if="{{selectedGarment}}" class="detail-mask" catchtap="closeDetail">
+    <view class="detail-sheet" catchtap="noop">
+      <view class="detail-head">
+        <text class="detail-title">{{selectedGarment.name}}</text>
+        <button class="close" catchtap="closeDetail">×</button>
+      </view>
+      <view class="detail-image-wrap">
+        <image wx:if="{{selectedGarment.imagePath}}" class="detail-img" src="{{selectedGarment.imagePath}}" mode="aspectFit"></image>
+        <view wx:else class="detail-visual {{selectedGarment.visual.kind}}">
+          <view class="silhouette {{selectedGarment.visual.kind}}" style="background: {{selectedGarment.colorHex}}; color: {{selectedGarment.colorHex}};"></view>
+        </view>
+      </view>
+      <view class="detail-tags">
+        <text>{{selectedGarment.category}}</text>
+        <text>{{selectedGarment.primaryColor}}</text>
+        <text>{{selectedGarment.status}}</text>
+      </view>
+      <view class="detail-info">
+        <view><text class="label">季节</text><text>{{selectedGarment.seasonsText}}</text></view>
+        <view><text class="label">风格</text><text>{{selectedGarment.stylesText}}</text></view>
+        <view><text class="label">场合</text><text>{{selectedGarment.occasionsText}}</text></view>
+        <view><text class="label">标签</text><text>{{selectedGarment.tagsText}}</text></view>
+        <view wx:if="{{selectedGarment.notes}}"><text class="label">备注</text><text>{{selectedGarment.notes}}</text></view>
+      </view>
+      <view class="detail-actions">
+        <button class="detail-btn primary" data-id="{{selectedGarment.id}}" catchtap="sendToOutfit">加入搭配</button>
+        <button class="detail-btn" data-id="{{selectedGarment.id}}" catchtap="toggleFavorite">{{selectedGarment.isFavorite ? '取消收藏' : '收藏'}}</button>
+        <button class="detail-btn wide" loading="{{regenerating}}" disabled="{{regenerating}}" data-id="{{selectedGarment.id}}" catchtap="regenerateFlatImage">重生单品图</button>
+      </view>
+    </view>
+  </view>
+</view>

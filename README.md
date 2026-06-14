@@ -119,3 +119,17 @@ store = false
 ```text
 docs/ui-concept.png
 ```
+
+## 微信小程序
+
+已新增 `wechat-miniprogram` 原生小程序工程，支持首页、衣橱、拍照、搭配、我的、微信登录和微信支付下单入口。打包命令：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\package-wechat-miniprogram.ps1"
+```
+
+配置步骤见：
+
+```text
+docs/wechat-miniprogram.md
+```

@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 import json
 import mimetypes
 import os
 import re
+import secrets
 import sys
 import threading
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -25,6 +30,9 @@ DEFAULT_REASONING_EFFORT = "xhigh"
 DEFAULT_GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_GOOGLE_MODEL = "gemini-3.5-flash"
 DEFAULT_GOOGLE_IMAGE_MODEL = "gemini-3.1-flash-image"
+DEFAULT_WECHAT_API_BASE = "https://api.weixin.qq.com"
+DEFAULT_WECHAT_PAY_API_BASE = "https://api.mch.weixin.qq.com"
+DEFAULT_WECHAT_PAYMENT_DESCRIPTION = "搭一下会员服务"
 RUNTIME_PROVIDER = ""
 RUNTIME_API_KEYS: list[str] = []
 API_KEY_ROTATION_INDEX: dict[str, int] = {"openai": 0, "google": 0}
@@ -294,6 +302,232 @@ def delete_database_file() -> bool:
         return False
     DATABASE_PATH.unlink()
     return True
+
+
+def base64url_encode(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
+
+
+def base64url_decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode(f"{value}{padding}".encode("ascii"))
+
+
+def wechat_app_id() -> str:
+    return env("WECHAT_APP_ID")
+
+
+def wechat_app_secret() -> str:
+    return env("WECHAT_APP_SECRET")
+
+
+def wechat_session_secret() -> str:
+    return env("WECHAT_SESSION_SECRET") or wechat_app_secret()
+
+
+def wechat_web_url() -> str:
+    return env("WECHAT_MINIPROGRAM_WEB_URL") or env("PUBLIC_APP_URL")
+
+
+def wechat_private_key_configured() -> bool:
+    return bool(env("WECHAT_PAY_PRIVATE_KEY") or env("WECHAT_PAY_PRIVATE_KEY_PATH"))
+
+
+def wechat_login_enabled() -> bool:
+    return bool(wechat_app_id() and wechat_app_secret())
+
+
+def wechat_payment_enabled() -> bool:
+    return bool(
+        wechat_app_id()
+        and env("WECHAT_PAY_MCH_ID")
+        and env("WECHAT_PAY_SERIAL_NO")
+        and env("WECHAT_PAY_NOTIFY_URL")
+        and wechat_private_key_configured()
+    )
+
+
+def wechat_public_config() -> dict[str, Any]:
+    return {
+        "loginEnabled": wechat_login_enabled(),
+        "paymentEnabled": wechat_payment_enabled(),
+        "webUrl": wechat_web_url(),
+        "appIdConfigured": bool(wechat_app_id()),
+        "appSecretConfigured": bool(wechat_app_secret()),
+        "merchantConfigured": bool(env("WECHAT_PAY_MCH_ID")),
+        "notifyUrlConfigured": bool(env("WECHAT_PAY_NOTIFY_URL")),
+        "privateKeyConfigured": wechat_private_key_configured(),
+    }
+
+
+def wechat_code2session(code: str) -> dict[str, Any]:
+    app_id = wechat_app_id()
+    app_secret = wechat_app_secret()
+    if not app_id or not app_secret:
+        raise RuntimeError("微信登录未配置：请设置 WECHAT_APP_ID 和 WECHAT_APP_SECRET。")
+    params = urllib.parse.urlencode(
+        {
+            "appid": app_id,
+            "secret": app_secret,
+            "js_code": code,
+            "grant_type": "authorization_code",
+        }
+    )
+    base_url = env("WECHAT_API_BASE", DEFAULT_WECHAT_API_BASE).rstrip("/")
+    request = urllib.request.Request(
+        f"{base_url}/sns/jscode2session?{params}",
+        headers={"Accept": "application/json", "User-Agent": "StyleTap/0.1"},
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    errcode = payload.get("errcode")
+    if errcode:
+        errmsg = payload.get("errmsg", "unknown error")
+        raise RuntimeError(f"微信登录失败：{errmsg} ({errcode})")
+    if not payload.get("openid"):
+        raise RuntimeError("微信登录失败：接口没有返回 openid。")
+    return payload
+
+
+def make_wechat_session_token(session: dict[str, Any]) -> str:
+    secret = wechat_session_secret()
+    if not secret:
+        raise RuntimeError("微信会话签名未配置：请设置 WECHAT_SESSION_SECRET。")
+    payload = {
+        "openid": session["openid"],
+        "unionid": session.get("unionid"),
+        "iat": int(time.time()),
+    }
+    payload_b64 = base64url_encode(json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+    signature = hmac.new(secret.encode("utf-8"), payload_b64.encode("ascii"), hashlib.sha256).digest()
+    return f"{payload_b64}.{base64url_encode(signature)}"
+
+
+def verify_wechat_session_token(token: str) -> dict[str, Any]:
+    secret = wechat_session_secret()
+    if not secret:
+        raise RuntimeError("微信会话签名未配置：请设置 WECHAT_SESSION_SECRET。")
+    try:
+        payload_b64, signature_b64 = str(token or "").split(".", 1)
+        expected = hmac.new(secret.encode("utf-8"), payload_b64.encode("ascii"), hashlib.sha256).digest()
+        actual = base64url_decode(signature_b64)
+    except Exception as error:
+        raise RuntimeError("微信登录状态无效，请重新登录。") from error
+    if not hmac.compare_digest(expected, actual):
+        raise RuntimeError("微信登录状态已失效，请重新登录。")
+    payload = json.loads(base64url_decode(payload_b64).decode("utf-8"))
+    ttl_days = int(env("WECHAT_SESSION_TTL_DAYS", "30"))
+    if int(time.time()) - int(payload.get("iat", 0)) > ttl_days * 86400:
+        raise RuntimeError("微信登录状态已过期，请重新登录。")
+    if not payload.get("openid"):
+        raise RuntimeError("微信登录状态无效，请重新登录。")
+    return payload
+
+
+def wechat_user_id(openid: str) -> str:
+    digest = hashlib.sha256(openid.encode("utf-8")).hexdigest()
+    return f"wx_{digest[:20]}"
+
+
+def load_wechat_pay_private_key() -> Any:
+    raw = env("WECHAT_PAY_PRIVATE_KEY")
+    path = env("WECHAT_PAY_PRIVATE_KEY_PATH")
+    if path:
+        raw = Path(path).read_text(encoding="utf-8")
+    if not raw:
+        raise RuntimeError("微信支付未配置商户私钥：请设置 WECHAT_PAY_PRIVATE_KEY 或 WECHAT_PAY_PRIVATE_KEY_PATH。")
+    raw = raw.replace("\\n", "\n").strip()
+    try:
+        from cryptography.hazmat.primitives import serialization
+    except ModuleNotFoundError as error:
+        raise RuntimeError("微信支付需要 cryptography 依赖，请先运行 pip install -r requirements.txt。") from error
+    return serialization.load_pem_private_key(raw.encode("utf-8"), password=None)
+
+
+def sign_wechat_pay_message(message: str) -> str:
+    try:
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import padding
+    except ModuleNotFoundError as error:
+        raise RuntimeError("微信支付需要 cryptography 依赖，请先运行 pip install -r requirements.txt。") from error
+    private_key = load_wechat_pay_private_key()
+    signature = private_key.sign(message.encode("utf-8"), padding.PKCS1v15(), hashes.SHA256())
+    return base64.b64encode(signature).decode("ascii")
+
+
+def make_wechat_pay_request(method: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    mch_id = env("WECHAT_PAY_MCH_ID")
+    serial_no = env("WECHAT_PAY_SERIAL_NO")
+    if not mch_id or not serial_no:
+        raise RuntimeError("微信支付未配置：请设置 WECHAT_PAY_MCH_ID 和 WECHAT_PAY_SERIAL_NO。")
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    timestamp = str(int(time.time()))
+    nonce = secrets.token_urlsafe(16)
+    message = f"{method}\n{path}\n{timestamp}\n{nonce}\n{body}\n"
+    signature = sign_wechat_pay_message(message)
+    auth = (
+        'WECHATPAY2-SHA256-RSA2048 '
+        f'mchid="{mch_id}",nonce_str="{nonce}",signature="{signature}",'
+        f'timestamp="{timestamp}",serial_no="{serial_no}"'
+    )
+    base_url = env("WECHAT_PAY_API_BASE", DEFAULT_WECHAT_PAY_API_BASE).rstrip("/")
+    request = urllib.request.Request(
+        f"{base_url}{path}",
+        data=body.encode("utf-8"),
+        method=method,
+        headers={
+            "Authorization": auth,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "StyleTap/0.1",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        details = error.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"微信支付下单失败：HTTP {error.code} {details}") from error
+
+
+def create_wechat_payment_params(request: dict[str, Any]) -> dict[str, Any]:
+    if not wechat_payment_enabled():
+        raise RuntimeError("微信支付未完整配置，请检查商户号、证书序列号、私钥和通知地址。")
+    session = verify_wechat_session_token(str(request.get("sessionToken") or request.get("token") or ""))
+    amount = int(request.get("amountCents") or env("WECHAT_PAY_DEFAULT_AMOUNT_CENTS", "990"))
+    max_amount = int(env("WECHAT_PAY_MAX_AMOUNT_CENTS", "200000"))
+    if amount < 1 or amount > max_amount:
+        raise RuntimeError("支付金额不在允许范围内。")
+    description = str(request.get("description") or env("WECHAT_PAY_DESCRIPTION", DEFAULT_WECHAT_PAYMENT_DESCRIPTION))[:127]
+    out_trade_no = f"DT{int(time.time())}{secrets.token_hex(5)}".upper()
+    body = {
+        "appid": wechat_app_id(),
+        "mchid": env("WECHAT_PAY_MCH_ID"),
+        "description": description,
+        "out_trade_no": out_trade_no,
+        "notify_url": env("WECHAT_PAY_NOTIFY_URL"),
+        "amount": {"total": amount, "currency": "CNY"},
+        "payer": {"openid": session["openid"]},
+    }
+    prepay = make_wechat_pay_request("POST", "/v3/pay/transactions/jsapi", body)
+    prepay_id = prepay.get("prepay_id")
+    if not prepay_id:
+        raise RuntimeError("微信支付下单失败：接口没有返回 prepay_id。")
+    package = f"prepay_id={prepay_id}"
+    timestamp = str(int(time.time()))
+    nonce = secrets.token_urlsafe(16)
+    pay_sign = sign_wechat_pay_message(f"{wechat_app_id()}\n{timestamp}\n{nonce}\n{package}\n")
+    return {
+        "outTradeNo": out_trade_no,
+        "amountCents": amount,
+        "paymentParams": {
+            "timeStamp": timestamp,
+            "nonceStr": nonce,
+            "package": package,
+            "signType": "RSA",
+            "paySign": pay_sign,
+        },
+    }
 
 
 def make_response_request(payload: dict[str, Any]) -> dict[str, Any]:
@@ -913,9 +1147,14 @@ class StyleTapHandler(SimpleHTTPRequestHandler):
                     "apiKeyCount": api_key_count(provider_id),
                     "runtimeApiKeyEnabled": runtime_api_key_enabled(),
                     "serverDatabaseEnabled": server_database_enabled(),
+                    "wechat": wechat_public_config(),
                     "responseStorageDisabled": True,
                 },
             )
+            return
+
+        if self.path == "/api/wechat/config":
+            json_response(self, 200, {"ok": True, **wechat_public_config()})
             return
 
         if self.path == "/favicon.ico":
@@ -989,6 +1228,40 @@ class StyleTapHandler(SimpleHTTPRequestHandler):
                         "bytes": size,
                     },
                 )
+                return
+
+            if self.path == "/api/wechat/login":
+                code = str(request.get("code", "")).strip()
+                if not code:
+                    json_response(self, 400, {"ok": False, "error": "Missing wx.login code."})
+                    return
+                session = wechat_code2session(code)
+                token = make_wechat_session_token(session)
+                json_response(
+                    self,
+                    200,
+                    {
+                        "ok": True,
+                        "sessionToken": token,
+                        "user": {
+                            "id": wechat_user_id(session["openid"]),
+                            "hasUnionId": bool(session.get("unionid")),
+                        },
+                    },
+                )
+                return
+
+            if self.path == "/api/wechat/pay/create":
+                payment = create_wechat_payment_params(request)
+                json_response(self, 200, {"ok": True, **payment})
+                return
+
+            if self.path == "/api/wechat/pay/notify":
+                # MVP only records that a notification endpoint exists. Do not grant paid
+                # entitlements here until WeChat Pay platform-certificate verification and
+                # encrypted resource decryption are implemented with an order table.
+                print("WeChat Pay notify received:", json.dumps(strip_secret_fields(request), ensure_ascii=False))
+                json_response(self, 200, {"code": "SUCCESS", "message": "成功"})
                 return
 
             if self.path == "/api/text":

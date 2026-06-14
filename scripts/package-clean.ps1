@@ -27,6 +27,7 @@ $Files = @(
   "render.yaml",
   "service-worker.js",
   "server.py",
+  "requirements.txt",
   "package.json",
   "README.md",
   ".env.example",
@@ -35,6 +36,7 @@ $Files = @(
 
 $Directories = @(
   "src",
+  "wechat-miniprogram",
   "docs",
   "scripts"
 )
@@ -60,7 +62,7 @@ $Forbidden = Get-ChildItem -LiteralPath $StageApp -Recurse -Force | Where-Object
   ($_.Name -like ".env.*" -and $_.Name -ne ".env.example") -or
   $_.Name -like "*.key" -or
   $_.Name -like "*.pem" -or
-  $_.Name -eq "wardrobe.json"
+  $_.FullName -match "\\data\\wardrobe\.json$"
 }
 
 if ($Forbidden) {
@@ -89,7 +91,7 @@ try {
     ($_.Name -like ".env.*" -and $_.Name -ne ".env.example") -or
     $_.Name -like "*.key" -or
     $_.Name -like "*.pem" -or
-    $_.Name -eq "wardrobe.json"
+    $_.FullName -match "(^|/)StyleTap/data/wardrobe\.json$"
   }
   if ($BadEntries) {
     $BadEntries | Select-Object FullName | Format-Table -AutoSize

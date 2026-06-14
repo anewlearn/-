@@ -96,6 +96,29 @@ DISABLE_RUNTIME_API_KEY=true
 - 网页不会接受临时 API Key。
 - 如果需要 AI 功能，请在服务器环境变量中配置 `AI_PROVIDER`，以及对应的 `OPENAI_API_KEY(S)` 或 `GOOGLE_API_KEY(S)`。
 
+## 微信小程序
+
+项目已包含 `wechat-miniprogram` 小程序工程。打包命令：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\package-wechat-miniprogram.ps1"
+```
+
+微信登录和支付需要额外在 Render 中配置：
+
+```text
+WECHAT_APP_ID=wx...
+WECHAT_APP_SECRET=小程序 AppSecret
+WECHAT_SESSION_SECRET=一段随机长字符串
+WECHAT_PAY_MCH_ID=微信支付商户号
+WECHAT_PAY_SERIAL_NO=商户 API 证书序列号
+WECHAT_PAY_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----
+WECHAT_PAY_NOTIFY_URL=https://da-xia.onrender.com/api/wechat/pay/notify
+WECHAT_PAY_DEFAULT_AMOUNT_CENTS=990
+```
+
+完整步骤见 `docs/wechat-miniprogram.md`。
+
 ## 公开发布前需要改造
 
 当前 MVP 还没有账号系统。如果要给多人长期使用，建议先加入：

@@ -3,7 +3,7 @@ services:
     name: styletap-web
     runtime: python
     plan: free
-    buildCommand: python -m py_compile server.py
+    buildCommand: pip install -r requirements.txt && python -m py_compile server.py
     startCommand: python server.py
     envVars:
       - key: HOST
@@ -38,3 +38,19 @@ services:
         sync: false
       - key: GOOGLE_API_KEYS
         sync: false
+      - key: WECHAT_APP_ID
+        sync: false
+      - key: WECHAT_APP_SECRET
+        sync: false
+      - key: WECHAT_SESSION_SECRET
+        sync: false
+      - key: WECHAT_PAY_MCH_ID
+        sync: false
+      - key: WECHAT_PAY_SERIAL_NO
+        sync: false
+      - key: WECHAT_PAY_PRIVATE_KEY
+        sync: false
+      - key: WECHAT_PAY_NOTIFY_URL
+        value: https://da-xia.onrender.com/api/wechat/pay/notify
+      - key: WECHAT_PAY_DEFAULT_AMOUNT_CENTS
+        value: "990"

@@ -1,0 +1,25 @@
+page {
+  min-height: 100%;
+  background: #fffaf7;
+  color: #171014;
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+}
+
+button {
+  font: inherit;
+  margin: 0;
+  border: 0;
+  letter-spacing: 0;
+}
+
+button::after {
+  border: 0;
+}
+
+image {
+  display: block;
+}
+
+.card-shadow {
+  box-shadow: 0 18rpx 48rpx rgba(90, 62, 48, 0.08);
+}

@@ -1,0 +1,58 @@
+<view class="page">
+  <view class="section-head">
+    <view>
+      <text class="title">搭配工作台</text>
+      <text class="sub">从衣橱直接选择单品，清洗中的衣服不会参与推荐。</text>
+    </view>
+  </view>
+
+  <view class="layers">
+    <block wx:for="{{layers}}" wx:key="key">
+      <view class="layer-row">
+        <view class="layer-copy">
+          <text class="layer-label">{{item.label}}</text>
+          <text class="layer-name">{{item.selectedName}}</text>
+        </view>
+        <picker data-key="{{item.key}}" range="{{item.optionNames}}" value="{{item.selectedIndex}}" bindchange="changeLayer">
+          <view class="select">选择</view>
+        </picker>
+      </view>
+    </block>
+  </view>
+
+  <view class="preview">
+    <block wx:for="{{selectedGarments}}" wx:key="id">
+      <view class="preview-item">
+        <image wx:if="{{item.imagePath}}" src="{{item.imagePath}}" mode="aspectFit"></image>
+        <view wx:else class="preview-visual" style="background: {{item.colorHex}};"></view>
+        <text>{{item.name}}</text>
+      </view>
+    </block>
+    <view wx:if="{{!selectedGarments.length}}" class="empty">还没有选择单品</view>
+  </view>
+
+  <button class="primary" bindtap="saveOutfit">保存穿搭</button>
+
+  <view class="recommend">
+    <view class="section-head compact">
+      <text class="section-title">AI 推荐前筛选</text>
+      <picker range="{{scenes}}" value="{{sceneIndex}}" bindchange="changeScene">
+        <view class="scene-select">{{scene}}</view>
+      </picker>
+    </view>
+    <block wx:for="{{plans}}" wx:key="id">
+      <view class="plan">
+        <view class="plan-head">
+          <text class="plan-title">{{item.title}}</text>
+          <text class="keywords">{{item.keywords}}</text>
+        </view>
+        <text class="reason">{{item.reason}}</text>
+        <view class="chips">
+          <block wx:for="{{item.garments}}" wx:for-item="garment" wx:key="id">
+            <button class="chip" data-plan="{{index}}" data-id="{{garment.id}}" bindtap="useGarment">{{garment.name}}</button>
+          </block>
+        </view>
+      </view>
+    </block>
+  </view>
+</view>
