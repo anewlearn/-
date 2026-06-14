@@ -117,35 +117,37 @@
       <text wx:if="{{aiSummary.bestReason}}" class="note-box">最推荐理由：{{aiSummary.bestReason}}</text>
     </view>
 
-    <block wx:if="{{aiPlans.length}}" wx:for="{{aiPlans}}" wx:key="id">
-      <view class="recommendation-plan {{item.isBest ? 'best' : ''}}">
-        <view class="plan-head">
-          <text class="plan-title">{{item.title}}</text>
-          <text class="best-badge">{{item.isBest ? '最推荐' : item.keywords}}</text>
+    <block wx:if="{{aiPlans.length > 0}}">
+      <block wx:for="{{aiPlans}}" wx:key="id">
+        <view class="recommendation-plan {{item.isBest ? 'best' : ''}}">
+          <view class="plan-head">
+            <text class="plan-title">{{item.title}}</text>
+            <text class="best-badge">{{item.isBest ? '最推荐' : item.keywords}}</text>
+          </view>
+          <view class="plan-items">
+            <block wx:for="{{item.garments}}" wx:for-item="garment" wx:key="id">
+              <image wx:if="{{garment.imagePath}}" src="{{garment.imagePath}}" mode="aspectFit"></image>
+              <view wx:else class="mini-visual" style="background: {{garment.colorHex}};"></view>
+            </block>
+          </view>
+          <text class="reason">{{item.reason}}</text>
+          <view class="plan-details">
+            <text wx:if="{{item.keywords}}">风格关键词：{{item.keywords}}</text>
+            <text wx:if="{{item.colorLogic}}">颜色逻辑：{{item.colorLogic}}</text>
+            <text wx:if="{{item.proportionLogic}}">版型比例：{{item.proportionLogic}}</text>
+            <text wx:if="{{item.sceneFit}}">适合场景：{{item.sceneFit}}</text>
+            <text wx:if="{{item.detailBoost}}">加分细节：{{item.detailBoost}}</text>
+            <text wx:if="{{item.risk}}">可能风险：{{item.risk}}</text>
+          </view>
+          <view class="button-row plan-buttons">
+            <button class="secondary" data-source="ai" data-id="{{item.id}}" bindtap="applyPlan">使用这套</button>
+            <button class="ghost">不喜欢</button>
+          </view>
         </view>
-        <view class="plan-items">
-          <block wx:for="{{item.garments}}" wx:for-item="garment" wx:key="id">
-            <image wx:if="{{garment.imagePath}}" src="{{garment.imagePath}}" mode="aspectFit"></image>
-            <view wx:else class="mini-visual" style="background: {{garment.colorHex}};"></view>
-          </block>
-        </view>
-        <text class="reason">{{item.reason}}</text>
-        <view class="plan-details">
-          <text wx:if="{{item.keywords}}">风格关键词：{{item.keywords}}</text>
-          <text wx:if="{{item.colorLogic}}">颜色逻辑：{{item.colorLogic}}</text>
-          <text wx:if="{{item.proportionLogic}}">版型比例：{{item.proportionLogic}}</text>
-          <text wx:if="{{item.sceneFit}}">适合场景：{{item.sceneFit}}</text>
-          <text wx:if="{{item.detailBoost}}">加分细节：{{item.detailBoost}}</text>
-          <text wx:if="{{item.risk}}">可能风险：{{item.risk}}</text>
-        </view>
-        <view class="button-row plan-buttons">
-          <button class="secondary" data-source="ai" data-id="{{item.id}}" bindtap="applyPlan">使用这套</button>
-          <button class="ghost">不喜欢</button>
-        </view>
-      </view>
+      </block>
     </block>
 
-    <block wx:else>
+    <block wx:if="{{aiPlans.length == 0}}">
       <block wx:for="{{plans}}" wx:key="id">
         <view class="recommendation-plan">
           <view class="plan-head">
