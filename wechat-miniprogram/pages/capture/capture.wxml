@@ -88,6 +88,8 @@
         </view>
       </block>
     </view>
-    <button class="primary confirm" bindtap="confirmGarments">加入衣橱</button>
+    <button class="primary confirm" disabled="{{processing || uploading}}" bindtap="confirmGarments">
+      {{processing || uploading ? '等待本地保存' : '加入衣橱'}}
+    </button>
   </view>
 </view>

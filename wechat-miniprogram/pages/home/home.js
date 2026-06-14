@@ -45,5 +45,13 @@ Page({
     const scene = event.currentTarget.dataset.scene || "通勤";
     wx.setStorageSync("styletap_scene", scene);
     wx.switchTab({ url: "/pages/outfit/outfit" });
+  },
+
+  openCapture() {
+    wx.switchTab({ url: "/pages/capture/capture" });
+  },
+
+  openOutfit() {
+    wx.switchTab({ url: "/pages/outfit/outfit" });
   }
 });

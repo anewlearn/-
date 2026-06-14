@@ -35,7 +35,9 @@ Page({
       seasonsText: (item.seasons || []).join(" / ") || "未设置",
       stylesText: (item.styles || []).join(" / ") || "未设置",
       occasionsText: (item.occasions || []).join(" / ") || "未设置",
-      tagsText: (item.aiTags || []).slice(0, 8).join(" / ") || "未设置"
+      tagsText: (item.aiTags || []).slice(0, 8).join(" / ") || "未设置",
+      wearCount: Number(item.wearCount || 0),
+      washCount: Number(item.washCount || 0)
     };
   },
 
@@ -69,6 +71,50 @@ Page({
   },
 
   noop() {},
+
+  openCapture() {
+    wx.switchTab({ url: "/pages/capture/capture" });
+  },
+
+  updateCount(event) {
+    const id = event.currentTarget.dataset.id;
+    const field = event.currentTarget.dataset.field;
+    const delta = Number(event.currentTarget.dataset.delta || 0);
+    if (!id || !["wearCount", "washCount"].includes(field)) return;
+    const database = this.data.database || loadDatabase();
+    database.garments = database.garments.map((item) => {
+      if (item.id !== id) return item;
+      const nextValue = Math.max(0, Number(item[field] || 0) + delta);
+      return {
+        ...item,
+        [field]: nextValue,
+        lastWornDate: field === "wearCount" && delta > 0 ? new Date().toISOString() : item.lastWornDate
+      };
+    });
+    saveDatabase(database);
+    const selected = database.garments.find((item) => item.id === id);
+    this.setData({
+      database,
+      selectedGarment: selected ? this.decorateGarment(selected) : null
+    });
+    this.refresh();
+  },
+
+  setCount(event) {
+    const id = event.currentTarget.dataset.id;
+    const field = event.currentTarget.dataset.field;
+    const value = Math.max(0, Number(event.detail.value || 0));
+    if (!id || !["wearCount", "washCount"].includes(field)) return;
+    const database = this.data.database || loadDatabase();
+    database.garments = database.garments.map((item) => item.id === id ? { ...item, [field]: value } : item);
+    saveDatabase(database);
+    const selected = database.garments.find((item) => item.id === id);
+    this.setData({
+      database,
+      selectedGarment: selected ? this.decorateGarment(selected) : null
+    });
+    this.refresh();
+  },
 
   sendToOutfit(event) {
     const id = event.currentTarget.dataset.id;

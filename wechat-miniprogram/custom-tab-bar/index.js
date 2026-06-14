@@ -3,8 +3,8 @@ Component({
     selected: 0,
     list: [
       { pagePath: "/pages/home/home", text: "首页", icon: "⌂" },
-      { pagePath: "/pages/wardrobe/wardrobe", text: "衣橱", icon: "▣" },
-      { pagePath: "/pages/capture/capture", text: "拍照", icon: "●", center: true },
+      { pagePath: "/pages/wardrobe/wardrobe", text: "衣橱", icon: "▥" },
+      { pagePath: "/pages/capture/capture", text: "拍照", icon: "⌾", center: true },
       { pagePath: "/pages/outfit/outfit", text: "搭配", icon: "✧" },
       { pagePath: "/pages/profile/profile", text: "我的", icon: "○" }
     ]

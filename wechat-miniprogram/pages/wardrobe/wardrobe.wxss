@@ -1,31 +1,100 @@
 .page {
   min-height: 100vh;
-  padding: 24rpx 24rpx 190rpx;
+  padding: 44rpx 28rpx 190rpx;
   box-sizing: border-box;
-  background: #fffaf7;
+  background: #fffdf8;
+}
+
+button::after {
+  border: 0;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24rpx;
+  margin-bottom: 22rpx;
+}
+
+.page-title {
+  display: block;
+  color: #171014;
+  font-size: 48rpx;
+  line-height: 1.1;
+  font-weight: 900;
+}
+
+.page-sub {
+  display: block;
+  margin-top: 12rpx;
+  color: #837a80;
+  font-size: 25rpx;
+  line-height: 1.45;
+}
+
+.add-btn {
+  flex: 0 0 auto;
+  width: 76rpx;
+  height: 76rpx;
+  line-height: 72rpx;
+  padding: 0;
+  border-radius: 50%;
+  color: #171014;
+  background: #ffffff;
+  border: 1rpx solid #efe7e2;
+  box-shadow: 0 14rpx 36rpx rgba(90, 62, 48, 0.08);
+  font-size: 42rpx;
+  font-weight: 600;
+}
+
+.filter-panel {
+  margin: 0 0 14rpx;
+  padding: 4rpx 0;
 }
 
 .tabs {
   white-space: nowrap;
-  margin-bottom: 18rpx;
+  width: 100%;
+  margin-bottom: 10rpx;
+}
+
+.season-tabs {
+  margin-bottom: 0;
+}
+
+.tab-line {
+  display: inline-flex;
+  align-items: center;
+  min-width: 100%;
 }
 
 .tab {
   display: inline-flex;
-  margin-right: 14rpx;
-  padding: 0 28rpx;
-  height: 64rpx;
-  line-height: 64rpx;
-  border-radius: 32rpx;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 82rpx;
+  max-width: 150rpx;
+  margin: 0 10rpx 0 0;
+  padding: 0 20rpx;
+  height: 48rpx;
+  line-height: 48rpx;
+  border-radius: 999rpx;
   border: 1rpx solid #efe4df;
   background: #ffffff;
   color: #171014;
-  font-size: 26rpx;
+  font-size: 23rpx;
+  font-weight: 800;
+  box-sizing: border-box;
 }
 
 .tab.small {
-  height: 58rpx;
-  line-height: 58rpx;
+  min-width: 70rpx;
+  height: 44rpx;
+  line-height: 44rpx;
+  padding: 0 18rpx;
+  font-size: 22rpx;
 }
 
 .tab.active {
@@ -38,7 +107,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 24rpx 8rpx 20rpx;
+  margin: 14rpx 8rpx 18rpx;
 }
 
 .title {
@@ -54,24 +123,24 @@
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 18rpx;
+  gap: 16rpx;
 }
 
 .card {
   position: relative;
   min-width: 0;
-  padding: 18rpx;
-  border-radius: 28rpx;
+  padding: 14rpx;
+  border-radius: 30rpx;
   border: 1rpx solid #f0e6e1;
   background: #ffffff;
-  box-shadow: 0 14rpx 38rpx rgba(90, 62, 48, 0.07);
+  box-shadow: 0 18rpx 46rpx rgba(90, 62, 48, 0.08);
 }
 
 .image-wrap {
   position: relative;
   width: 100%;
-  height: 220rpx;
-  border-radius: 24rpx;
+  height: 202rpx;
+  border-radius: 22rpx;
   overflow: hidden;
   background: linear-gradient(180deg, #fffdfb, #fbf6f2);
 }
@@ -79,8 +148,8 @@
 .fav {
   position: absolute;
   z-index: 2;
-  right: 12rpx;
-  top: 12rpx;
+  right: 10rpx;
+  top: 10rpx;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -89,6 +158,7 @@
   height: 52rpx;
   line-height: 52rpx;
   box-sizing: border-box;
+  margin: 0;
   padding: 0;
   border-radius: 50%;
   color: #b9afb5;
@@ -106,8 +176,8 @@
 .garment-img,
 .garment-visual {
   width: 100%;
-  height: 220rpx;
-  border-radius: 24rpx;
+  height: 202rpx;
+  border-radius: 22rpx;
   background: #fbf6f2;
 }
 
@@ -125,13 +195,7 @@
 
 .garment-visual::before,
 .detail-visual::before {
-  content: "";
-  position: absolute;
-  width: 78%;
-  height: 42%;
-  top: -20%;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
+  display: none;
 }
 
 .silhouette {
@@ -215,8 +279,8 @@
 
 .name {
   display: block;
-  margin-top: 14rpx;
-  font-size: 27rpx;
+  margin-top: 12rpx;
+  font-size: 25rpx;
   font-weight: 800;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -226,21 +290,28 @@
 .meta {
   display: block;
   margin-top: 4rpx;
-  font-size: 24rpx;
+  font-size: 22rpx;
+}
+
+.counts {
+  display: block;
+  margin-top: 4rpx;
+  color: #9b9095;
+  font-size: 20rpx;
 }
 
 .row {
   display: flex;
   gap: 10rpx;
-  margin-top: 14rpx;
+  margin-top: 12rpx;
 }
 
 .mini-btn {
   flex: 1;
-  height: 58rpx;
-  line-height: 58rpx;
+  height: 54rpx;
+  line-height: 54rpx;
   padding: 0;
-  border-radius: 22rpx;
+  border-radius: 20rpx;
   background: #fff0f4;
   color: #c02655;
   font-size: 22rpx;
@@ -339,6 +410,58 @@
   background: #f3e8ff;
   font-size: 23rpx;
   font-weight: 800;
+}
+
+.count-editor {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.count-card {
+  padding: 16rpx;
+  border-radius: 24rpx;
+  border: 1rpx solid #f0e6e1;
+  background: #ffffff;
+}
+
+.count-label {
+  display: block;
+  margin-bottom: 12rpx;
+  color: #81767c;
+  font-size: 23rpx;
+  font-weight: 800;
+}
+
+.stepper {
+  display: grid;
+  grid-template-columns: 52rpx 1fr 52rpx;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.stepper button {
+  width: 52rpx;
+  height: 52rpx;
+  line-height: 52rpx;
+  padding: 0;
+  border-radius: 18rpx;
+  color: #c02655;
+  background: #fff0f4;
+  font-size: 30rpx;
+  font-weight: 850;
+}
+
+.stepper input {
+  height: 52rpx;
+  line-height: 52rpx;
+  border-radius: 18rpx;
+  color: #171014;
+  background: #fbf7f4;
+  text-align: center;
+  font-size: 26rpx;
+  font-weight: 850;
 }
 
 .detail-info {

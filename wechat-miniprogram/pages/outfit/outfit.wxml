@@ -1,58 +1,170 @@
 <view class="page">
-  <view class="section-head">
+  <view class="page-header">
     <view>
       <text class="title">搭配工作台</text>
-      <text class="sub">从衣橱直接选择单品，清洗中的衣服不会参与推荐。</text>
+      <text class="sub">像做杂志拼贴一样，把不同层级的单品组合起来。</text>
+    </view>
+    <text class="{{aiReady ? 'status ok' : 'status warn'}}">{{aiStatus}}</text>
+  </view>
+
+  <view class="workspace">
+    <view class="collage-stage">
+      <block wx:for="{{selectedGarments}}" wx:key="id">
+        <view class="stage-item item-{{index}}">
+          <image wx:if="{{item.imagePath}}" src="{{item.imagePath}}" mode="aspectFit"></image>
+          <view wx:else class="preview-visual" style="background: {{item.colorHex}};"></view>
+        </view>
+      </block>
+      <view wx:if="{{!selectedGarments.length}}" class="stage-empty">从衣橱中选择单品</view>
+    </view>
+
+    <view class="button-row">
+      <button class="primary" bindtap="saveOutfit">保存穿搭</button>
+      <button class="secondary" loading="{{aiLoading}}" disabled="{{aiLoading}}" bindtap="generateAiPlans">
+        {{aiLoading ? '生成中' : '大师级推荐'}}
+      </button>
+      <button class="ghost" loading="{{tryOnLoading}}" disabled="{{tryOnLoading || !selectedGarments.length}}" bindtap="generateTryOn">
+        {{tryOnLoading ? '生成中' : (tryOnPersonPath ? '换到人物身上' : '生成 AI 试穿效果')}}
+      </button>
+    </view>
+
+    <view class="mode-strip">
+      <view>
+        <text class="mode-title">{{aiMode == 'fast' ? '快速模式' : '正常模式'}}</text>
+        <text class="mode-copy">
+          {{aiMode == 'fast' ? '压缩人物照和衣物参考图，少传参考图，速度更快。' : '保留更高图片质量和更多参考图，试穿细节更好但更慢。'}}
+        </text>
+      </view>
+      <view class="segmented">
+        <button class="{{aiMode == 'fast' ? 'active' : ''}}" data-mode="fast" bindtap="setAiMode">快速</button>
+        <button class="{{aiMode == 'normal' ? 'active' : ''}}" data-mode="normal" bindtap="setAiMode">正常</button>
+      </view>
+    </view>
+
+    <view class="try-on-panel">
+      <view class="section-title-row">
+        <view>
+          <text class="section-title">AI 试穿效果</text>
+          <text class="hint">{{tryOnImagePath ? '已生成' : tryOnLoading ? '生成中' : '实验功能'}}</text>
+        </view>
+      </view>
+
+      <view class="person-upload">
+        <view wx:if="{{tryOnPersonPath}}" class="person-reference">
+          <image src="{{tryOnPersonPath}}" mode="aspectFill"></image>
+          <view class="person-copy">
+            <text class="person-title">人物形象已上传</text>
+            <text class="person-sub">{{tryOnPersonName || '参考照片'}}</text>
+          </view>
+          <button class="tiny" bindtap="clearPersonImage">移除</button>
+        </view>
+        <button wx:else class="upload-zone" bindtap="choosePersonImage">
+          <text class="upload-icon">人物</text>
+          <text class="upload-title">上传人物形象</text>
+          <text class="upload-sub">可把当前穿搭直接换到这张人物照上</text>
+        </button>
+      </view>
+
+      <image wx:if="{{tryOnImagePath}}" class="try-on-image" src="{{tryOnImagePath}}" mode="aspectFit"></image>
+      <view wx:else class="try-on-placeholder">
+        {{aiReady ? (tryOnPersonPath ? '选择好单品后，AI 会参考人物照生成换装效果。' : '选择好单品后生成一张整体穿搭效果图。') : '请先在 Render 环境变量中配置 AI Key。'}}
+        AI 模拟效果仅供穿搭参考，细节和实际版型可能存在差异。
+      </view>
+    </view>
+
+    <view class="layer-list">
+      <block wx:for="{{layers}}" wx:key="key">
+        <view class="layer-row">
+          <text class="layer-label">{{item.label}}</text>
+          <text class="layer-name">{{item.selectedName}}</text>
+          <picker data-key="{{item.key}}" range="{{item.optionNames}}" value="{{item.selectedIndex}}" bindchange="changeLayer">
+            <view class="select">选择</view>
+          </picker>
+        </view>
+      </block>
     </view>
   </view>
 
-  <view class="layers">
-    <block wx:for="{{layers}}" wx:key="key">
-      <view class="layer-row">
-        <view class="layer-copy">
-          <text class="layer-label">{{item.label}}</text>
-          <text class="layer-name">{{item.selectedName}}</text>
-        </view>
-        <picker data-key="{{item.key}}" range="{{item.optionNames}}" value="{{item.selectedIndex}}" bindchange="changeLayer">
-          <view class="select">选择</view>
-        </picker>
-      </view>
-    </block>
-  </view>
-
-  <view class="preview">
-    <block wx:for="{{selectedGarments}}" wx:key="id">
-      <view class="preview-item">
-        <image wx:if="{{item.imagePath}}" src="{{item.imagePath}}" mode="aspectFit"></image>
-        <view wx:else class="preview-visual" style="background: {{item.colorHex}};"></view>
-        <text>{{item.name}}</text>
-      </view>
-    </block>
-    <view wx:if="{{!selectedGarments.length}}" class="empty">还没有选择单品</view>
-  </view>
-
-  <button class="primary" bindtap="saveOutfit">保存穿搭</button>
-
-  <view class="recommend">
-    <view class="section-head compact">
-      <text class="section-title">AI 推荐前筛选</text>
+  <view class="section">
+    <view class="section-title-row">
+      <text class="section-title">推荐输入</text>
       <picker range="{{scenes}}" value="{{sceneIndex}}" bindchange="changeScene">
         <view class="scene-select">{{scene}}</view>
       </picker>
     </view>
-    <block wx:for="{{plans}}" wx:key="id">
-      <view class="plan">
+  </view>
+
+  <view class="section">
+    <view class="section-title-row">
+      <view>
+        <text class="section-title">AI 推荐方案</text>
+        <text class="hint">{{aiPlans.length ? 'AI 实时生成' : '本地规则推荐'}}</text>
+      </view>
+    </view>
+
+    <view wx:if="{{aiSummary}}" class="stylist-report">
+      <view class="report-grid">
+        <view>
+          <text class="report-title">整体风格</text>
+          <text class="report-text">{{aiSummary.wardrobeStyle || '已完成衣橱整体风格判断。'}}</text>
+        </view>
+        <view>
+          <text class="report-title">筛选逻辑</text>
+          <text class="report-text">{{aiSummary.screeningLogic || '根据当前场景筛选最匹配单品。'}}</text>
+        </view>
+      </view>
+      <text class="storage-note">本地标签已先从衣橱 {{aiSummary.sourceCount}} 件单品中筛出 {{aiSummary.candidateCount}} 件候选，再交给 AI 分析；清洗中的衣服不会进入最终搭配。</text>
+      <text wx:if="{{aiSummary.bestReason}}" class="note-box">最推荐理由：{{aiSummary.bestReason}}</text>
+    </view>
+
+    <block wx:if="{{aiPlans.length}}" wx:for="{{aiPlans}}" wx:key="id">
+      <view class="recommendation-plan {{item.isBest ? 'best' : ''}}">
         <view class="plan-head">
           <text class="plan-title">{{item.title}}</text>
-          <text class="keywords">{{item.keywords}}</text>
+          <text class="best-badge">{{item.isBest ? '最推荐' : item.keywords}}</text>
+        </view>
+        <view class="plan-items">
+          <block wx:for="{{item.garments}}" wx:for-item="garment" wx:key="id">
+            <image wx:if="{{garment.imagePath}}" src="{{garment.imagePath}}" mode="aspectFit"></image>
+            <view wx:else class="mini-visual" style="background: {{garment.colorHex}};"></view>
+          </block>
         </view>
         <text class="reason">{{item.reason}}</text>
-        <view class="chips">
+        <view class="plan-details">
+          <text wx:if="{{item.keywords}}">风格关键词：{{item.keywords}}</text>
+          <text wx:if="{{item.colorLogic}}">颜色逻辑：{{item.colorLogic}}</text>
+          <text wx:if="{{item.proportionLogic}}">版型比例：{{item.proportionLogic}}</text>
+          <text wx:if="{{item.sceneFit}}">适合场景：{{item.sceneFit}}</text>
+          <text wx:if="{{item.detailBoost}}">加分细节：{{item.detailBoost}}</text>
+          <text wx:if="{{item.risk}}">可能风险：{{item.risk}}</text>
+        </view>
+        <view class="button-row plan-buttons">
+          <button class="secondary" data-source="ai" data-id="{{item.id}}" bindtap="applyPlan">使用这套</button>
+          <button class="ghost">不喜欢</button>
+        </view>
+      </view>
+    </block>
+
+    <block wx:else wx:for="{{plans}}" wx:key="id">
+      <view class="recommendation-plan">
+        <view class="plan-head">
+          <text class="plan-title">{{item.title}}</text>
+          <text class="best-badge">{{item.keywords}}</text>
+        </view>
+        <view class="plan-items">
           <block wx:for="{{item.garments}}" wx:for-item="garment" wx:key="id">
-            <button class="chip" data-plan="{{index}}" data-id="{{garment.id}}" bindtap="useGarment">{{garment.name}}</button>
+            <image wx:if="{{garment.imagePath}}" src="{{garment.imagePath}}" mode="aspectFit"></image>
+            <view wx:else class="mini-visual" style="background: {{garment.colorHex}};"></view>
           </block>
+        </view>
+        <text class="reason">{{item.reason}}</text>
+        <view class="button-row plan-buttons">
+          <button class="secondary" data-source="local" data-id="{{item.id}}" bindtap="applyPlan">使用这套</button>
+          <button class="ghost">不喜欢</button>
         </view>
       </view>
     </block>
   </view>
+
+  <view wx:if="{{error}}" class="error-box">{{error}}</view>
 </view>

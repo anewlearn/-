@@ -1,25 +1,28 @@
 <view class="page">
-  <view class="header">
-    <text class="hello">今天想怎么搭？</text>
-    <text class="sub">你的衣服，值得被重新看见。</text>
+  <view class="hero">
+    <view>
+      <text class="hello">今天想怎么搭？</text>
+      <text class="sub">从现有衣橱里挑一套，或者拍一件新衣服进来。</text>
+    </view>
+    <button class="camera-btn" bindtap="openCapture">⌾</button>
   </view>
 
-  <view class="recommend">
-    <view class="section-head">
-      <text class="section-title">今日推荐</text>
-      <button class="text-btn" bindtap="refreshRecommendation">换一套</button>
-    </view>
-    <view class="outfit-card">
-      <view class="outfit-preview">
-        <block wx:for="{{today.garments}}" wx:key="id">
-          <image wx:if="{{item.imagePath}}" class="outfit-img" src="{{item.imagePath}}" mode="aspectFit"></image>
-          <view wx:else class="visual {{item.visual.kind}}" style="background: {{item.colorHex}};"></view>
-        </block>
+  <view class="today-card" bindtap="openOutfit">
+    <image class="today-image" src="/assets/outfit-recommendation.png" mode="aspectFill"></image>
+    <view class="today-copy">
+      <view class="tag-row">
+        <text class="tag scene-tag">{{today.scene}}</text>
+        <text class="tag ai-tag">AI 推荐</text>
       </view>
-      <view class="outfit-copy">
-        <text class="pill">{{today.scene}}</text>
-        <text class="outfit-title">{{today.title}}</text>
-        <text class="reason">{{today.reason}}</text>
+      <text class="outfit-title">{{today.title}}</text>
+      <text class="reason">{{today.reason}}</text>
+      <view class="mini-strip">
+        <block wx:for="{{today.garments}}" wx:key="id">
+          <view class="mini-piece">
+            <image wx:if="{{item.imagePath}}" src="{{item.imagePath}}" mode="aspectFit"></image>
+            <view wx:else class="mini-visual {{item.visual.kind}}" style="background: {{item.colorHex}};"></view>
+          </view>
+        </block>
       </view>
     </view>
   </view>
@@ -27,11 +30,14 @@
   <view class="section">
     <view class="section-head">
       <text class="section-title">快捷场景</text>
+      <button class="text-btn" bindtap="refreshRecommendation">换一套</button>
     </view>
-    <scroll-view scroll-x class="scene-scroll">
-      <block wx:for="{{scenes}}" wx:key="*this">
-        <button class="scene" data-scene="{{item}}" bindtap="openScene">{{item}}</button>
-      </block>
+    <scroll-view scroll-x class="scene-scroll" enhanced show-scrollbar="{{false}}">
+      <view class="scene-line">
+        <block wx:for="{{scenes}}" wx:key="*this">
+          <button class="scene" data-scene="{{item}}" bindtap="openScene">{{item}}</button>
+        </block>
+      </view>
     </scroll-view>
   </view>
 
@@ -40,15 +46,17 @@
       <text class="section-title">最近加入</text>
       <text class="muted">{{garmentCount}} 件</text>
     </view>
-    <view class="recent-grid">
-      <block wx:for="{{recentGarments}}" wx:key="id">
-        <view class="mini-card">
-          <image wx:if="{{item.imagePath}}" class="mini-img" src="{{item.imagePath}}" mode="aspectFit"></image>
-          <view wx:else class="mini-visual {{item.visual.kind}}" style="background: {{item.colorHex}};"></view>
-          <text class="mini-name">{{item.name}}</text>
-        </view>
-      </block>
-    </view>
+    <scroll-view scroll-x class="recent-scroll" enhanced show-scrollbar="{{false}}">
+      <view class="recent-line">
+        <block wx:for="{{recentGarments}}" wx:key="id">
+          <view class="mini-card">
+            <image wx:if="{{item.imagePath}}" class="mini-img" src="{{item.imagePath}}" mode="aspectFit"></image>
+            <view wx:else class="mini-visual {{item.visual.kind}}" style="background: {{item.colorHex}};"></view>
+            <text class="mini-name">{{item.name}}</text>
+          </view>
+        </block>
+      </view>
+    </scroll-view>
   </view>
 
   <view class="overview">

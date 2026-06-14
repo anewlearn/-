@@ -288,7 +288,7 @@ Page({
     const queue = this.data.queue.map((local) => {
       const remote = byId[local.taskId];
       if (!remote) return local;
-      if (TERMINAL_STATUSES.includes(remote.status) && !local.localSaved) {
+      if ((remote.garments || []).length && !local.localSaved) {
         (remote.garments || []).forEach((raw) => {
           const garment = decorateGarment(makeGarment(raw));
           existing[garment.id] = garment;

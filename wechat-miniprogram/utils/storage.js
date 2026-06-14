@@ -58,6 +58,7 @@ function makeGarment(overrides) {
     imageError: overrides.imageError || "",
     isFavorite: Boolean(overrides.isFavorite),
     wearCount: Number(overrides.wearCount || 0),
+    washCount: Number(overrides.washCount || 0),
     lastWornDate: overrides.lastWornDate || "",
     status: overrides.status || "可穿",
     createdAt: overrides.createdAt || nowIso(),

@@ -1,15 +1,29 @@
 <view class="page">
-  <scroll-view scroll-x class="tabs">
-    <block wx:for="{{categories}}" wx:key="*this">
-      <button class="tab {{item == category ? 'active' : ''}}" data-value="{{item}}" bindtap="selectCategory">{{item}}</button>
-    </block>
-  </scroll-view>
+  <view class="page-header">
+    <view>
+      <text class="page-title">电子衣橱</text>
+      <text class="page-sub">按类别和季节快速找到能穿的单品。</text>
+    </view>
+    <button class="add-btn" bindtap="openCapture">＋</button>
+  </view>
 
-  <scroll-view scroll-x class="tabs season-tabs">
-    <block wx:for="{{seasons}}" wx:key="*this">
-      <button class="tab small {{item == season ? 'active' : ''}}" data-value="{{item}}" bindtap="selectSeason">{{item}}</button>
-    </block>
-  </scroll-view>
+  <view class="filter-panel">
+    <scroll-view scroll-x class="tabs" enhanced show-scrollbar="{{false}}">
+      <view class="tab-line">
+        <block wx:for="{{categories}}" wx:key="*this">
+          <button class="tab {{item == category ? 'active' : ''}}" data-value="{{item}}" bindtap="selectCategory">{{item}}</button>
+        </block>
+      </view>
+    </scroll-view>
+
+    <scroll-view scroll-x class="tabs season-tabs" enhanced show-scrollbar="{{false}}">
+      <view class="tab-line">
+        <block wx:for="{{seasons}}" wx:key="*this">
+          <button class="tab small {{item == season ? 'active' : ''}}" data-value="{{item}}" bindtap="selectSeason">{{item}}</button>
+        </block>
+      </view>
+    </scroll-view>
+  </view>
 
   <view class="section-head">
     <text class="title">{{category}}单品</text>
@@ -29,6 +43,7 @@
         </view>
         <text class="name">{{item.name}}</text>
         <text class="meta">{{item.seasonsText}}</text>
+        <text class="counts">穿 {{item.wearCount}} · 洗 {{item.washCount}}</text>
         <view class="row">
           <button class="mini-btn" data-id="{{item.id}}" catchtap="sendToOutfit">加入搭配</button>
           <button class="mini-btn ghost" data-id="{{item.id}}" catchtap="deleteGarment">删除</button>
@@ -53,6 +68,24 @@
         <text>{{selectedGarment.category}}</text>
         <text>{{selectedGarment.primaryColor}}</text>
         <text>{{selectedGarment.status}}</text>
+      </view>
+      <view class="count-editor">
+        <view class="count-card">
+          <text class="count-label">穿着次数</text>
+          <view class="stepper">
+            <button data-id="{{selectedGarment.id}}" data-field="wearCount" data-delta="-1" catchtap="updateCount">-</button>
+            <input type="number" value="{{selectedGarment.wearCount}}" data-id="{{selectedGarment.id}}" data-field="wearCount" bindblur="setCount" />
+            <button data-id="{{selectedGarment.id}}" data-field="wearCount" data-delta="1" catchtap="updateCount">+</button>
+          </view>
+        </view>
+        <view class="count-card">
+          <text class="count-label">清洗次数</text>
+          <view class="stepper">
+            <button data-id="{{selectedGarment.id}}" data-field="washCount" data-delta="-1" catchtap="updateCount">-</button>
+            <input type="number" value="{{selectedGarment.washCount}}" data-id="{{selectedGarment.id}}" data-field="washCount" bindblur="setCount" />
+            <button data-id="{{selectedGarment.id}}" data-field="washCount" data-delta="1" catchtap="updateCount">+</button>
+          </view>
+        </view>
       </view>
       <view class="detail-info">
         <view><text class="label">季节</text><text>{{selectedGarment.seasonsText}}</text></view>
