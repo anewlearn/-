@@ -18,13 +18,13 @@
       <view wx:if="{{!selectedGarments.length}}" class="stage-empty">从衣橱中选择单品</view>
     </view>
 
-    <view class="button-row">
+    <view class="button-row workspace-actions">
       <button class="primary" bindtap="saveOutfit">保存穿搭</button>
       <button class="secondary" loading="{{aiLoading}}" disabled="{{aiLoading}}" bindtap="generateAiPlans">
-        {{aiLoading ? '生成中' : '大师级推荐'}}
+        {{aiLoading ? '生成中' : '大师推荐'}}
       </button>
       <button class="ghost" loading="{{tryOnLoading}}" disabled="{{tryOnLoading || !selectedGarments.length}}" bindtap="generateTryOn">
-        {{tryOnLoading ? '生成中' : (tryOnPersonPath ? '换到人物身上' : '生成 AI 试穿效果')}}
+        {{tryOnLoading ? '生成中' : (tryOnPersonPath ? '换装试穿' : 'AI 试穿')}}
       </button>
     </view>
 

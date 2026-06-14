@@ -153,6 +153,20 @@
   margin-top: 18rpx;
 }
 
+.workspace-actions {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.workspace-actions .primary {
+  flex: 1 1 100%;
+}
+
+.workspace-actions .secondary,
+.workspace-actions .ghost {
+  flex: 1 1 0;
+}
+
 .primary,
 .secondary,
 .ghost {
@@ -160,8 +174,13 @@
   height: 78rpx;
   line-height: 78rpx;
   border-radius: 26rpx;
+  box-sizing: border-box;
+  padding: 0 16rpx;
   font-size: 24rpx;
   font-weight: 850;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .primary {
