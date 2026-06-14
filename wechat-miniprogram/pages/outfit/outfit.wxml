@@ -145,24 +145,26 @@
       </view>
     </block>
 
-    <block wx:else wx:for="{{plans}}" wx:key="id">
-      <view class="recommendation-plan">
-        <view class="plan-head">
-          <text class="plan-title">{{item.title}}</text>
-          <text class="best-badge">{{item.keywords}}</text>
+    <block wx:else>
+      <block wx:for="{{plans}}" wx:key="id">
+        <view class="recommendation-plan">
+          <view class="plan-head">
+            <text class="plan-title">{{item.title}}</text>
+            <text class="best-badge">{{item.keywords}}</text>
+          </view>
+          <view class="plan-items">
+            <block wx:for="{{item.garments}}" wx:for-item="garment" wx:key="id">
+              <image wx:if="{{garment.imagePath}}" src="{{garment.imagePath}}" mode="aspectFit"></image>
+              <view wx:else class="mini-visual" style="background: {{garment.colorHex}};"></view>
+            </block>
+          </view>
+          <text class="reason">{{item.reason}}</text>
+          <view class="button-row plan-buttons">
+            <button class="secondary" data-source="local" data-id="{{item.id}}" bindtap="applyPlan">使用这套</button>
+            <button class="ghost">不喜欢</button>
+          </view>
         </view>
-        <view class="plan-items">
-          <block wx:for="{{item.garments}}" wx:for-item="garment" wx:key="id">
-            <image wx:if="{{garment.imagePath}}" src="{{garment.imagePath}}" mode="aspectFit"></image>
-            <view wx:else class="mini-visual" style="background: {{garment.colorHex}};"></view>
-          </block>
-        </view>
-        <text class="reason">{{item.reason}}</text>
-        <view class="button-row plan-buttons">
-          <button class="secondary" data-source="local" data-id="{{item.id}}" bindtap="applyPlan">使用这套</button>
-          <button class="ghost">不喜欢</button>
-        </view>
-      </view>
+      </block>
     </block>
   </view>
 
