@@ -1053,16 +1053,18 @@ async function handleAction(event) {
         break;
       }
       const input = root.querySelector("#api-key-input");
+      const providerSelect = root.querySelector("#api-provider-select");
       const apiKey = input?.value.trim() || "";
+      const provider = providerSelect?.value || ui.apiConfig?.providerId || "openai";
       if (!apiKey) {
         showToast("请输入 API Key");
         break;
       }
       try {
-        await setRuntimeApiKey(apiKey);
+        await setRuntimeApiKey(apiKey, provider);
         if (input) input.value = "";
         await refreshApiConfig();
-        showToast("AI 密钥已临时保存");
+        showToast(provider === "google" ? "Google API 已临时保存" : "OpenAI API 已临时保存");
       } catch (error) {
         showToast("密钥保存失败");
       }

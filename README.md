@@ -71,9 +71,28 @@ http://192.168.1.23:5173
 也可以启动前在当前终端设置环境变量：
 
 ```powershell
+$env:AI_PROVIDER="openai"
 $env:OPENAI_API_KEY="你的密钥"
 python server.py
 ```
+
+如果要使用 Google Gemini：
+
+```powershell
+$env:AI_PROVIDER="google"
+$env:GOOGLE_API_KEY="你的 Google Gemini API Key"
+$env:GOOGLE_MODEL="gemini-3.5-flash"
+$env:GOOGLE_IMAGE_MODEL="gemini-3.1-flash-image"
+python server.py
+```
+
+多个 Key 可以用逗号、分号、空格或换行分隔，例如：
+
+```powershell
+$env:GOOGLE_API_KEYS="第一个Key,第二个Key,第三个Key"
+```
+
+当某个 Key 返回 429、502、5xx、网络超时，或 Google 额度/限流类 403 时，后端会在同一次请求内自动尝试下一个 Key，避免界面长时间卡住。
 
 可选环境变量：
 
@@ -81,6 +100,7 @@ python server.py
 $env:OPENAI_BASE_URL="https://ai-us.hctopup.com/v1"
 $env:OPENAI_MODEL="gpt-5.5"
 $env:OPENAI_REASONING_EFFORT="xhigh"
+$env:GOOGLE_BASE_URL="https://generativelanguage.googleapis.com/v1beta"
 ```
 
 默认已使用：

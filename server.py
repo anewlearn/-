@@ -22,8 +22,12 @@ DEFAULT_BASE_URL = "https://ai-us.hctopup.com/v1"
 DEFAULT_MODEL = "gpt-5.5"
 DEFAULT_IMAGE_MODEL = "gpt-image-2"
 DEFAULT_REASONING_EFFORT = "xhigh"
-RUNTIME_API_KEY = ""
-API_KEY_ROTATION_INDEX = 0
+DEFAULT_GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+DEFAULT_GOOGLE_MODEL = "gemini-3.5-flash"
+DEFAULT_GOOGLE_IMAGE_MODEL = "gemini-3.1-flash-image"
+RUNTIME_PROVIDER = ""
+RUNTIME_API_KEYS: list[str] = []
+API_KEY_ROTATION_INDEX: dict[str, int] = {"openai": 0, "google": 0}
 API_KEY_ROTATION_LOCK = threading.Lock()
 SECRET_FIELD_NAMES = {
     "apikey",
@@ -68,8 +72,36 @@ def runtime_api_key_enabled() -> bool:
     return not env_flag("DISABLE_RUNTIME_API_KEY")
 
 
-def provider_config() -> dict[str, str]:
+def normalize_provider(provider: str = "") -> str:
+    value = (provider or "").strip().lower()
+    if value in {"google", "gemini", "google_gemini"}:
+        return "google"
+    return "openai"
+
+
+def provider_label(provider: str = "") -> str:
+    return "Google Gemini" if normalize_provider(provider) == "google" else "OpenAI"
+
+
+def active_provider_id() -> str:
+    configured = RUNTIME_PROVIDER or env("AI_PROVIDER") or env("MODEL_PROVIDER") or "openai"
+    return normalize_provider(configured)
+
+
+def provider_config(provider: str = "") -> dict[str, str]:
+    provider_id = normalize_provider(provider or active_provider_id())
+    if provider_id == "google":
+        return {
+            "provider": "google",
+            "label": "Google Gemini",
+            "base_url": env("GOOGLE_BASE_URL", DEFAULT_GOOGLE_BASE_URL).rstrip("/"),
+            "model": env("GOOGLE_MODEL", DEFAULT_GOOGLE_MODEL),
+            "image_model": env("GOOGLE_IMAGE_MODEL", DEFAULT_GOOGLE_IMAGE_MODEL),
+            "reasoning_effort": env("GOOGLE_REASONING_EFFORT", env("OPENAI_REASONING_EFFORT", DEFAULT_REASONING_EFFORT)),
+        }
     return {
+        "provider": "openai",
+        "label": "OpenAI",
         "base_url": env("OPENAI_BASE_URL", DEFAULT_BASE_URL).rstrip("/"),
         "model": env("OPENAI_MODEL", DEFAULT_MODEL),
         "image_model": env("OPENAI_IMAGE_MODEL", DEFAULT_IMAGE_MODEL),
@@ -81,59 +113,71 @@ def split_env_values(value: str) -> list[str]:
     return [item.strip() for item in re.split(r"[\s,;]+", value or "") if item.strip()]
 
 
-def configured_api_keys() -> list[str]:
-    if RUNTIME_API_KEY:
-        return [RUNTIME_API_KEY]
+def add_unique_keys(keys: list[str], values: list[str]) -> None:
+    for value in values:
+        if value and value not in keys:
+            keys.append(value)
+
+
+def configured_api_keys(provider: str = "") -> list[str]:
+    provider_id = normalize_provider(provider or active_provider_id())
+    if RUNTIME_API_KEYS and normalize_provider(RUNTIME_PROVIDER) == provider_id:
+        return RUNTIME_API_KEYS
 
     keys: list[str] = []
-    for candidate in split_env_values(env("OPENAI_API_KEYS")):
-        if candidate not in keys:
-            keys.append(candidate)
-
-    single_key = env("OPENAI_API_KEY")
-    if single_key and single_key not in keys:
-        keys.append(single_key)
+    if provider_id == "google":
+        add_unique_keys(keys, split_env_values(env("GOOGLE_API_KEYS")))
+        add_unique_keys(keys, split_env_values(env("GEMINI_API_KEYS")))
+        add_unique_keys(keys, split_env_values(env("GOOGLE_API_KEY")))
+        add_unique_keys(keys, split_env_values(env("GEMINI_API_KEY")))
+    else:
+        add_unique_keys(keys, split_env_values(env("OPENAI_API_KEYS")))
+        add_unique_keys(keys, split_env_values(env("OPENAI_API_KEY")))
 
     return keys
 
 
-def api_key() -> str:
-    keys = configured_api_keys()
+def api_key(provider: str = "") -> str:
+    keys = configured_api_keys(provider)
     return keys[0] if keys else ""
 
 
-def next_api_key() -> str:
-    candidates = api_key_candidates()
+def next_api_key(provider: str = "") -> str:
+    candidates = api_key_candidates(provider)
     return candidates[0] if candidates else ""
 
 
-def api_key_candidates() -> list[str]:
-    global API_KEY_ROTATION_INDEX
-    keys = configured_api_keys()
+def api_key_candidates(provider: str = "") -> list[str]:
+    provider_id = normalize_provider(provider or active_provider_id())
+    keys = configured_api_keys(provider_id)
     if len(keys) <= 1:
         return keys
     with API_KEY_ROTATION_LOCK:
-        start = API_KEY_ROTATION_INDEX % len(keys)
-        API_KEY_ROTATION_INDEX += 1
+        start = API_KEY_ROTATION_INDEX.get(provider_id, 0) % len(keys)
+        API_KEY_ROTATION_INDEX[provider_id] = start + 1
     return keys[start:] + keys[:start]
 
 
-def api_key_count() -> int:
-    return len(configured_api_keys())
+def api_key_count(provider: str = "") -> int:
+    return len(configured_api_keys(provider))
 
 
-def api_key_source() -> str:
-    if RUNTIME_API_KEY:
+def api_key_source(provider: str = "") -> str:
+    provider_id = normalize_provider(provider or active_provider_id())
+    if RUNTIME_API_KEYS and normalize_provider(RUNTIME_PROVIDER) == provider_id:
         return "runtime"
-    if api_key_count() > 1:
+    if api_key_count(provider_id) > 1:
         return "environment_pool"
-    if api_key_count() == 1:
+    if api_key_count(provider_id) == 1:
         return "environment"
     return "none"
 
 
 def retryable_provider_error(error: ProviderError) -> bool:
     if error.status is None:
+        return True
+    lower = f"{error} {error.details}".lower()
+    if error.status == 403 and any(token in lower for token in ("quota", "rate", "limit", "exhausted", "resource_exhausted")):
         return True
     return error.status in {408, 409, 425, 429, 500, 502, 503, 504}
 
@@ -142,8 +186,10 @@ def request_with_key_failover(
     request_factory: Any,
     timeout: int,
     missing_key_message: str = "请先在“我的”页面输入 API Key。",
+    provider: str = "",
 ) -> dict[str, Any]:
-    candidates = api_key_candidates()
+    provider_id = normalize_provider(provider or active_provider_id())
+    candidates = api_key_candidates(provider_id)
     if not candidates:
         raise RuntimeError(missing_key_message)
 
@@ -163,6 +209,7 @@ def request_with_key_failover(
         last_error = provider_error
         attempts.append(
             {
+                "provider": provider_label(provider_id),
                 "keyIndex": index + 1,
                 "status": provider_error.status,
                 "message": str(provider_error),
@@ -250,7 +297,7 @@ def delete_database_file() -> bool:
 
 
 def make_response_request(payload: dict[str, Any]) -> dict[str, Any]:
-    config = provider_config()
+    config = provider_config("openai")
     url = f"{config['base_url']}/responses"
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
@@ -266,11 +313,11 @@ def make_response_request(payload: dict[str, Any]) -> dict[str, Any]:
             },
         )
 
-    return request_with_key_failover(factory, timeout=120)
+    return request_with_key_failover(factory, timeout=120, provider="openai")
 
 
 def make_json_post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
-    config = provider_config()
+    config = provider_config("openai")
     url = f"{config['base_url']}{path}"
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
@@ -286,7 +333,7 @@ def make_json_post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
             },
         )
 
-    return request_with_key_failover(factory, timeout=120)
+    return request_with_key_failover(factory, timeout=120, provider="openai")
 
 
 def make_multipart_post(path: str, fields: dict[str, str], files: list[dict[str, Any]]) -> dict[str, Any]:
@@ -313,7 +360,7 @@ def make_multipart_post(path: str, fields: dict[str, str], files: list[dict[str,
     chunks.append(f"--{boundary}--\r\n".encode("utf-8"))
     data = b"".join(chunks)
 
-    config = provider_config()
+    config = provider_config("openai")
     url = f"{config['base_url']}{path}"
 
     def factory(key: str) -> urllib.request.Request:
@@ -328,7 +375,35 @@ def make_multipart_post(path: str, fields: dict[str, str], files: list[dict[str,
             },
         )
 
-    return request_with_key_failover(factory, timeout=180)
+    return request_with_key_failover(factory, timeout=180, provider="openai")
+
+
+def google_model_path(model: str) -> str:
+    value = str(model or "").strip()
+    if value.startswith("models/"):
+        return value
+    return f"models/{value}"
+
+
+def make_google_generate_content(payload: dict[str, Any], model: str = "", timeout: int = 120) -> dict[str, Any]:
+    config = provider_config("google")
+    model_path = google_model_path(model or config["model"])
+    url = f"{config['base_url']}/{model_path}:generateContent"
+    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+    def factory(key: str) -> urllib.request.Request:
+        return urllib.request.Request(
+            url,
+            data=data,
+            method="POST",
+            headers={
+                "x-goog-api-key": key,
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+        )
+
+    return request_with_key_failover(factory, timeout=timeout, provider="google")
 
 
 def provider_error_message(status: int, details: str) -> str:
@@ -346,8 +421,8 @@ def provider_error_message(status: int, details: str) -> str:
     lower = f"{message} {error_type}".lower()
     if status == 401 or "invalid_api_key" in lower or "invalid api key" in lower:
         return "API Key 无效。请到“我的”页面重新输入有效密钥。"
-    if status == 429:
-        return "AI 服务请求过于频繁或额度不足，请稍后再试。"
+    if status == 429 or ("quota" in lower or "resource_exhausted" in lower or "rate limit" in lower):
+        return "AI 服务请求过于频繁或额度不足，已尝试切换可用 Key；如果全部失败，请稍后再试或补充新的 Key。"
     if status == 502 or "upstream" in lower:
         return "AI 网关上游请求失败。通常是当前网关暂时不可用，或该模型不支持图片识别/生图工具。请稍后重试，或更换支持图像能力的模型/接口。"
     if status == 400 and ("image" in lower or "tool" in lower or "unsupported" in lower):
@@ -367,6 +442,17 @@ def text_from_response(response: dict[str, Any]) -> str:
                 parts.append(text)
             elif isinstance(text, dict) and isinstance(text.get("value"), str):
                 parts.append(text["value"])
+    return "\n".join(parts).strip()
+
+
+def text_from_google_response(response: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for candidate in response.get("candidates", []) or []:
+        content = candidate.get("content", {}) if isinstance(candidate, dict) else {}
+        for part in content.get("parts", []) or []:
+            text = part.get("text") if isinstance(part, dict) else None
+            if isinstance(text, str):
+                parts.append(text)
     return "\n".join(parts).strip()
 
 
@@ -391,7 +477,13 @@ def find_image_data(value: Any) -> str | None:
             return value
         return None
     if isinstance(value, dict):
-        for key in ("b64_json", "image_base64", "base64", "result", "data", "url", "image_url"):
+        inline = value.get("inlineData") or value.get("inline_data")
+        if isinstance(inline, dict):
+            data = inline.get("data")
+            mime = inline.get("mimeType") or inline.get("mime_type") or "image/png"
+            if isinstance(data, str) and looks_like_image_base64(data):
+                return f"data:{mime};base64,{data}"
+        for key in ("b64_json", "image_base64", "base64", "inlineData", "inline_data", "result", "data", "url", "image_url"):
             found = find_image_data(value.get(key))
             if found:
                 return found
@@ -483,6 +575,99 @@ def image_inputs_from_request(request: dict[str, Any]) -> list[str]:
         if candidate.startswith("data:image/") or candidate.startswith(("http://", "https://")):
             images.append(candidate)
     return images[:16]
+
+
+def image_reference_to_google_part(image: str, index: int) -> dict[str, Any] | None:
+    mime = "image/png"
+    encoded = ""
+    if image.startswith("data:image/"):
+        header, encoded = image.split(",", 1)
+        mime_match = re.search(r"data:(image/[^;]+)", header)
+        if mime_match:
+            mime = mime_match.group(1)
+    elif image.startswith(("http://", "https://")):
+        with urllib.request.urlopen(image, timeout=60) as response:
+            content = response.read()
+            mime = response.headers.get_content_type() or mime
+            encoded = base64.b64encode(content).decode("ascii")
+    else:
+        return None
+
+    return {
+        "inlineData": {
+            "mimeType": mime,
+            "data": encoded,
+        }
+    }
+
+
+def google_image_parts_from_request(request: dict[str, Any]) -> list[dict[str, Any]]:
+    parts: list[dict[str, Any]] = []
+    for index, image in enumerate(image_inputs_from_request(request), start=1):
+        part = image_reference_to_google_part(image, index)
+        if part:
+            parts.append(part)
+    return parts
+
+
+def google_aspect_ratio(size: str) -> str:
+    match = re.match(r"^\s*(\d+)\s*x\s*(\d+)\s*$", str(size or ""))
+    if not match:
+        return "1:1"
+    width = int(match.group(1))
+    height = int(match.group(2))
+    if not width or not height:
+        return "1:1"
+    ratio = width / height
+    if ratio < 0.8:
+        return "2:3"
+    if ratio > 1.25:
+        return "3:2"
+    return "1:1"
+
+
+def build_google_text_payload(request: dict[str, Any]) -> dict[str, Any]:
+    prompt = str(request.get("prompt", "")).strip()
+    system = str(request.get("system", "")).strip()
+    parts: list[dict[str, Any]] = [{"text": prompt}]
+    parts.extend(google_image_parts_from_request(request))
+    payload: dict[str, Any] = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": parts,
+            }
+        ],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+        },
+    }
+    if system:
+        payload["systemInstruction"] = {"parts": [{"text": system}]}
+    return payload
+
+
+def build_google_image_payload(request: dict[str, Any]) -> dict[str, Any]:
+    prompt = str(request.get("prompt", "")).strip()
+    size = str(request.get("size") or "1024x1024")
+    parts: list[dict[str, Any]] = [{"text": prompt}]
+    parts.extend(google_image_parts_from_request(request))
+    return {
+        "contents": [
+            {
+                "role": "user",
+                "parts": parts,
+            }
+        ],
+        "generationConfig": {
+            "responseModalities": ["Image"],
+            "responseFormat": {
+                "image": {
+                    "aspectRatio": google_aspect_ratio(size),
+                }
+            },
+        },
+    }
 
 
 def image_reference_to_file(image: str, index: int) -> dict[str, Any] | None:
@@ -618,6 +803,37 @@ def generate_image_with_fallback(request: dict[str, Any]) -> tuple[str | None, l
     return None, errors
 
 
+def generate_google_image(request: dict[str, Any]) -> tuple[str | None, list[dict[str, Any]]]:
+    errors: list[dict[str, Any]] = []
+    config = provider_config("google")
+    try:
+        response = make_google_generate_content(
+            build_google_image_payload(request),
+            model=str(request.get("imageModel") or config["image_model"]),
+            timeout=180,
+        )
+        image_data = find_image_data(response)
+        if image_data:
+            return image_data, errors
+        errors.append(
+            {
+                "mode": "google_generate_content",
+                "message": "Google Gemini 没有返回图片数据。",
+                "raw": response,
+            }
+        )
+    except ProviderError as error:
+        errors.append(
+            {
+                "mode": "google_generate_content",
+                "message": str(error),
+                "status": error.status,
+                "details": error.details,
+            }
+        )
+    return None, errors
+
+
 class StyleTapHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -663,20 +879,38 @@ class StyleTapHandler(SimpleHTTPRequestHandler):
             return
 
         if self.path == "/api/config":
-            config = provider_config()
+            provider_id = active_provider_id()
+            config = provider_config(provider_id)
+            providers = []
+            for item in ("openai", "google"):
+                item_config = provider_config(item)
+                providers.append(
+                    {
+                        "id": item,
+                        "label": provider_label(item),
+                        "baseUrl": item_config["base_url"],
+                        "model": item_config["model"],
+                        "imageModel": item_config["image_model"],
+                        "hasApiKey": bool(api_key(item)),
+                        "apiKeyCount": api_key_count(item),
+                        "keySource": api_key_source(item),
+                    }
+                )
             json_response(
                 self,
                 200,
                 {
                     "ok": True,
-                    "provider": "OpenAI",
+                    "provider": config["label"],
+                    "providerId": provider_id,
+                    "providers": providers,
                     "baseUrl": config["base_url"],
                     "model": config["model"],
                     "imageModel": config["image_model"],
                     "reasoningEffort": config["reasoning_effort"],
-                    "hasApiKey": bool(api_key()),
-                    "keySource": api_key_source(),
-                    "apiKeyCount": api_key_count(),
+                    "hasApiKey": bool(api_key(provider_id)),
+                    "keySource": api_key_source(provider_id),
+                    "apiKeyCount": api_key_count(provider_id),
                     "runtimeApiKeyEnabled": runtime_api_key_enabled(),
                     "serverDatabaseEnabled": server_database_enabled(),
                     "responseStorageDisabled": True,
@@ -692,7 +926,7 @@ class StyleTapHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self) -> None:
-        global RUNTIME_API_KEY
+        global RUNTIME_PROVIDER, RUNTIME_API_KEYS
         try:
             request = read_json(self)
             if self.path == "/api/key":
@@ -702,26 +936,31 @@ class StyleTapHandler(SimpleHTTPRequestHandler):
                         200,
                         {
                             "ok": False,
-                            "error": "线上部署不接受网页临时 API Key。请在服务器环境变量 OPENAI_API_KEY 中配置，或保持 AI 未连接状态。",
-                            "hasApiKey": bool(api_key()),
-                            "keySource": api_key_source(),
-                            "apiKeyCount": api_key_count(),
+                            "error": "线上部署不接受网页临时 API Key。请在服务器环境变量中配置 OPENAI_API_KEY(S) 或 GOOGLE_API_KEY(S)，并用 AI_PROVIDER 选择提供方。",
+                            "hasApiKey": bool(api_key(active_provider_id())),
+                            "keySource": api_key_source(active_provider_id()),
+                            "apiKeyCount": api_key_count(active_provider_id()),
                         },
                     )
                     return
-                candidate = str(request.get("apiKey", "")).strip()
-                if not candidate:
+                provider_id = normalize_provider(str(request.get("provider") or active_provider_id()))
+                candidates = split_env_values(str(request.get("apiKey", "")).strip())
+                if not candidates:
                     json_response(self, 400, {"ok": False, "error": "Missing API key."})
                     return
-                RUNTIME_API_KEY = candidate
+                RUNTIME_PROVIDER = provider_id
+                RUNTIME_API_KEYS = []
+                add_unique_keys(RUNTIME_API_KEYS, candidates)
                 json_response(
                     self,
                     200,
                     {
                         "ok": True,
                         "hasApiKey": True,
+                        "provider": provider_label(provider_id),
+                        "providerId": provider_id,
                         "keySource": "runtime",
-                        "apiKeyCount": api_key_count(),
+                        "apiKeyCount": api_key_count(provider_id),
                     },
                 )
                 return
@@ -756,15 +995,24 @@ class StyleTapHandler(SimpleHTTPRequestHandler):
                 if not str(request.get("prompt", "")).strip():
                     json_response(self, 400, {"ok": False, "error": "Missing prompt."})
                     return
-                response = make_response_request(build_text_payload(request))
-                json_response(self, 200, {"ok": True, "text": text_from_response(response), "raw": response})
+                provider_id = active_provider_id()
+                if provider_id == "google":
+                    response = make_google_generate_content(build_google_text_payload(request), timeout=120)
+                    json_response(self, 200, {"ok": True, "text": text_from_google_response(response), "raw": response})
+                else:
+                    response = make_response_request(build_text_payload(request))
+                    json_response(self, 200, {"ok": True, "text": text_from_response(response), "raw": response})
                 return
 
             if self.path == "/api/image":
                 if not str(request.get("prompt", "")).strip():
                     json_response(self, 400, {"ok": False, "error": "Missing prompt."})
                     return
-                image_data, image_errors = generate_image_with_fallback(request)
+                provider_id = active_provider_id()
+                if provider_id == "google":
+                    image_data, image_errors = generate_google_image(request)
+                else:
+                    image_data, image_errors = generate_image_with_fallback(request)
                 if not image_data:
                     json_response(
                         self,
@@ -799,7 +1047,7 @@ class StyleTapHandler(SimpleHTTPRequestHandler):
             json_response(self, 500, {"ok": False, "error": str(error)})
 
     def do_DELETE(self) -> None:
-        global RUNTIME_API_KEY
+        global RUNTIME_PROVIDER, RUNTIME_API_KEYS
         if self.path == "/api/database":
             if not server_database_enabled():
                 json_response(
@@ -832,22 +1080,23 @@ class StyleTapHandler(SimpleHTTPRequestHandler):
                     200,
                     {
                         "ok": True,
-                        "hasApiKey": bool(api_key()),
-                        "keySource": api_key_source(),
-                        "apiKeyCount": api_key_count(),
+                        "hasApiKey": bool(api_key(active_provider_id())),
+                        "keySource": api_key_source(active_provider_id()),
+                        "apiKeyCount": api_key_count(active_provider_id()),
                         "runtimeApiKeyEnabled": False,
                     },
                 )
                 return
-            RUNTIME_API_KEY = ""
+            RUNTIME_PROVIDER = ""
+            RUNTIME_API_KEYS = []
             json_response(
                 self,
                 200,
                 {
                     "ok": True,
-                    "hasApiKey": bool(api_key()),
-                    "keySource": api_key_source(),
-                    "apiKeyCount": api_key_count(),
+                    "hasApiKey": bool(api_key(active_provider_id())),
+                    "keySource": api_key_source(active_provider_id()),
+                    "apiKeyCount": api_key_count(active_provider_id()),
                 },
             )
             return
@@ -869,7 +1118,9 @@ def run() -> None:
     print(f"StyleTap server running at http://{host}:{port}")
     if host == "0.0.0.0":
         print(f"LAN access enabled. Other devices should use this computer's LAN IP, for example http://192.168.x.x:{port}")
-    print("OpenAI API key count:", api_key_count())
+    print("Active AI provider:", provider_label(active_provider_id()))
+    print("OpenAI API key count:", api_key_count("openai"))
+    print("Google API key count:", api_key_count("google"))
     server.serve_forever()
 
 

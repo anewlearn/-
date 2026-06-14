@@ -254,8 +254,8 @@ export async function getApiConfig() {
   }
 }
 
-export async function setRuntimeApiKey(apiKey) {
-  return requestJson("/api/key", { apiKey });
+export async function setRuntimeApiKey(apiKey, provider = "openai") {
+  return requestJson("/api/key", { apiKey, provider });
 }
 
 export async function clearRuntimeApiKey() {

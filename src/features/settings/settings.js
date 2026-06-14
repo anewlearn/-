@@ -89,48 +89,74 @@ function renderModeSwitch(activeMode) {
   `;
 }
 
+function providerSourceText(provider) {
+  if (!provider) return "未配置";
+  if (provider.keySource === "runtime") return `网页临时输入（${provider.apiKeyCount || 0} 个 Key）`;
+  if (provider.keySource === "environment_pool") return `系统环境变量 Key 池（${provider.apiKeyCount || 0} 个）`;
+  if (provider.keySource === "environment") return "系统环境变量";
+  return "未配置";
+}
+
+function renderProviderOptions(config) {
+  const providers = config?.providers?.length
+    ? config.providers
+    : [
+        { id: "openai", label: "OpenAI", hasApiKey: config?.providerId !== "google" && Boolean(config?.hasApiKey) },
+        { id: "google", label: "Google Gemini", hasApiKey: config?.providerId === "google" && Boolean(config?.hasApiKey) },
+      ];
+  return providers
+    .map(
+      (provider) => `
+        <option value="${escapeHtml(provider.id)}" ${provider.id === (config?.providerId || "openai") ? "selected" : ""}>
+          ${escapeHtml(provider.label)}${provider.hasApiKey ? "（已配置）" : ""}
+        </option>
+      `,
+    )
+    .join("");
+}
+
 function renderApiKeyPanel(ui) {
   const config = ui.apiConfig;
+  const activeProvider = (config?.providers || []).find((provider) => provider.id === config?.providerId);
   const hasKey = Boolean(config?.hasApiKey);
-  const sourceText =
-    config?.keySource === "runtime"
-      ? "网页临时输入"
-      : config?.keySource === "environment_pool"
-        ? `系统环境变量 Key 池（${config?.apiKeyCount || 0} 个）`
-        : config?.keySource === "environment"
-          ? "系统环境变量"
-          : "未配置";
+  const sourceText = providerSourceText(activeProvider || config);
   const runtimeKeyEnabled = config?.runtimeApiKeyEnabled !== false;
   const managedByServer = !runtimeKeyEnabled;
+  const providerName = config?.provider || "OpenAI";
 
   return `
     <section class="form-panel api-key-panel">
       <div class="section-title">
         <h2>AI 接口密钥</h2>
-        <span>${hasKey ? "已连接" : "未连接"}</span>
+        <span>${hasKey ? `${providerName} 已连接` : "未连接"}</span>
       </div>
       <div class="api-status ${hasKey ? "is-ready" : "is-missing"}">
-        <strong>${hasKey ? "AI 已连接" : "AI 未配置密钥"}</strong>
-        <span>${config?.model || "gpt-5.5"} / ${sourceText} / 不在页面或文件中明文保存</span>
+        <strong>${hasKey ? `${providerName} 已连接` : "AI 未配置密钥"}</strong>
+        <span>${config?.model || "未设置模型"} / ${sourceText} / 不在页面或文件中明文保存</span>
       </div>
       ${
         managedByServer
           ? `
             <p class="note-box">
-              线上部署已关闭网页临时密钥输入。请在 Render 的 Environment 中配置 OPENAI_API_KEY 或 OPENAI_API_KEYS；
-              配好后这里会显示“系统环境变量”或“系统环境变量 Key 池”。
+              线上部署已关闭网页临时密钥输入。请在 Render 的 Environment 中配置 AI_PROVIDER=openai 或 AI_PROVIDER=google；
+              OpenAI 使用 OPENAI_API_KEY / OPENAI_API_KEYS，Google 使用 GOOGLE_API_KEY / GOOGLE_API_KEYS。
+              多个 Key 可用逗号或换行分隔，某个 Key 额度耗尽、429、502、超时后会自动换下一个重试。
             </p>
           `
           : `
-            <label class="field-label" for="api-key-input">OpenAI API Key</label>
-            <input
+            <label class="field-label" for="api-provider-select">接口提供方</label>
+            <select id="api-provider-select" class="select-field">
+              ${renderProviderOptions(config)}
+            </select>
+            <label class="field-label" for="api-key-input">API Key，可填多个</label>
+            <textarea
               id="api-key-input"
-              class="text-field"
-              type="password"
+              class="text-field api-key-input"
               autocomplete="off"
               spellcheck="false"
-              placeholder="输入后仅保存在本地服务器内存"
-            />
+              rows="3"
+              placeholder="每行一个，或用逗号分隔；仅保存在本地服务器内存"
+            ></textarea>
             <div class="button-row">
               <button class="primary-button" data-action="save-api-key" type="button">保存并连接</button>
               <button class="ghost-button" data-action="clear-api-key" type="button">清除临时密钥</button>
